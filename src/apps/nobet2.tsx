@@ -1,5 +1,5 @@
 React;
-import React, { useState } from "react";
+import React, { useState, ReactNode } from "react";
 import {
   BookOpen,
   CheckCircle2,
@@ -15,8 +15,23 @@ import {
   Stethoscope,
 } from "lucide-react";
 
+// --- TİP TANIMLAMALARI (TypeScript Hatalarını Çözmek İçin) ---
+interface Section {
+  id: number;
+  title: string;
+  icon: ReactNode;
+  content: ReactNode;
+}
+
+interface QuizQuestion {
+  id: number;
+  question: string;
+  options: string[];
+  answer: number;
+}
+
 // --- DATA: PDF İÇERİĞİ ---
-const sections = [
+const sections: Section[] = [
   {
     id: 0,
     title: "1. Acil Yaklaşım",
@@ -377,7 +392,7 @@ const sections = [
 ];
 
 // --- DATA: QUIZ (20 Soru, 5 Şık) ---
-const quizData = [
+const quizData: QuizQuestion[] = [
   {
     id: 1,
     question:
@@ -641,11 +656,17 @@ const quizData = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState(0);
-  const [answers, setAnswers] = useState({});
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [activeTab, setActiveTab] = useState<number>(0);
 
-  const handleOptionSelect = (questionIndex, optionIndex) => {
+  // TypeScript hatasını önlemek için Record<number, number> tanımlaması yapıldı
+  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
+
+  // Parametrelere açıkça "number" tipleri eklendi
+  const handleOptionSelect = (
+    questionIndex: number,
+    optionIndex: number
+  ): void => {
     if (!isSubmitted) {
       setAnswers((prev) => ({
         ...prev,
@@ -654,7 +675,7 @@ export default function App() {
     }
   };
 
-  const calculateScore = () => {
+  const calculateScore = (): number => {
     let score = 0;
     quizData.forEach((q, index) => {
       if (answers[index] === q.answer) score++;
@@ -662,7 +683,7 @@ export default function App() {
     return score;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (): void => {
     if (Object.keys(answers).length < quizData.length) {
       if (
         !window.confirm(
@@ -676,7 +697,7 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleReset = () => {
+  const handleReset = (): void => {
     setAnswers({});
     setIsSubmitted(false);
     window.scrollTo({ top: 0, behavior: "smooth" });

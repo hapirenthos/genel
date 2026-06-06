@@ -1,12 +1,19 @@
 React;
 import React, { useState } from "react";
-import { ChevronLeft, Plus, Stethoscope, PillBottle } from "lucide-react";
+import {
+  ChevronLeft,
+  Plus,
+  Stethoscope,
+  PillBottle,
+  Brain,
+} from "lucide-react";
 
 // ==========================================
 // 1. ADIM: YENİ UYGULAMALARINI BURAYA İMPORT ET
 // ==========================================
 import nobet from "./apps/nobet";
 import ab from "./apps/antibiyotik";
+import nobet2 from "./apps/nobet2";
 
 type AppConfig = {
   id: string;
@@ -33,6 +40,13 @@ const APPS: AppConfig[] = [
     icon: PillBottle,
     color: "bg-sky-400",
     component: ab,
+  },
+  {
+    id: "nobet2",
+    name: "Nöbet2",
+    icon: Brain,
+    color: "bg-indigo-600",
+    component: nobet2,
   },
 ];
 
