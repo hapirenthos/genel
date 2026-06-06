@@ -1,6 +1,6 @@
 React;
 import React, { useState } from "react";
-import { ChevronLeft, Plus, Stethoscope } from "lucide-react";
+import { ChevronLeft, Plus, Stethoscope, PillBottle } from "lucide-react";
 
 // ==========================================
 // 1. ADIM: YENİ UYGULAMALARINI BURAYA İMPORT ET
@@ -30,7 +30,7 @@ const APPS: AppConfig[] = [
   {
     id: "ab",
     name: "Antibiyotik",
-    icon: Stethoscope,
+    icon: PillBottle,
     color: "bg-sky-400",
     component: ab,
   },
