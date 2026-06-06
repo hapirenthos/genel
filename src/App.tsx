@@ -6,6 +6,7 @@ import { ChevronLeft, Plus, Stethoscope } from "lucide-react";
 // 1. ADIM: YENİ UYGULAMALARINI BURAYA İMPORT ET
 // ==========================================
 import nobet from "./apps/nobet";
+import ab from "./apps/antibiyotik";
 
 type AppConfig = {
   id: string;
@@ -25,6 +26,13 @@ const APPS: AppConfig[] = [
     icon: Stethoscope,
     color: "bg-indigo-600",
     component: nobet,
+  },
+  {
+    id: "ab",
+    name: "Antibiyotik",
+    icon: Stethoscope,
+    color: "bg-sky-400",
+    component: ab,
   },
 ];
 
