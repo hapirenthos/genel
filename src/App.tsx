@@ -7,6 +7,7 @@ import {
   PillBottle,
   Brain,
   Frown,
+  Baby,
 } from "lucide-react";
 
 // ==========================================
@@ -16,6 +17,7 @@ import nobet from "./apps/nobet";
 import ab from "./apps/antibiyotik";
 import nobet2 from "./apps/nobet2";
 import ishal from "./apps/ishal";
+import büyü from "./apps/büyüme";
 
 type AppConfig = {
   id: string;
@@ -56,6 +58,13 @@ const APPS: AppConfig[] = [
     icon: Frown,
     color: "bg-yellow-900",
     component: ishal,
+  },
+  {
+    id: "büyü",
+    name: "Çocuğu Büyüt",
+    icon: Baby,
+    color: "bg-indigo-350",
+    component: büyü,
   },
 ];
 
