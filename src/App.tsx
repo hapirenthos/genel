@@ -9,6 +9,7 @@ import {
   Frown,
   Baby,
   Slice,
+  BeanOff,
 } from "lucide-react";
 
 // ==========================================
@@ -21,6 +22,8 @@ import ishal from "./apps/ishal";
 import büyü from "./apps/büyüme";
 import malab from "./apps/malabsorbsiyon";
 import gc from "./apps/gc";
+import aby from "./apps/abykby";
+
 type AppConfig = {
   id: string;
   name: string;
@@ -81,6 +84,13 @@ const APPS: AppConfig[] = [
     icon: Slice,
     color: "bg-slate-500",
     component: gc,
+  },
+  {
+    id: "aby",
+    name: "ABY ve KBY yaklaşım",
+    icon: BeanOff,
+    color: "bg-amber-500",
+    component: aby,
   },
 ];
 
