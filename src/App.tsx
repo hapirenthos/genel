@@ -18,7 +18,7 @@ import ab from "./apps/antibiyotik";
 import nobet2 from "./apps/nobet2";
 import ishal from "./apps/ishal";
 import büyü from "./apps/büyüme";
-
+import malab from "./apps/malabsorbsiyon";
 type AppConfig = {
   id: string;
   name: string;
@@ -65,6 +65,13 @@ const APPS: AppConfig[] = [
     icon: Baby,
     color: "bg-zinc-900",
     component: büyü,
+  },
+  {
+    id: 'malabsorbsiyon',
+    name: 'malabsorbsiyon',
+    icon:Frown,
+    color: 'bg-red-700',
+    component: malab,
   },
 ];
 
