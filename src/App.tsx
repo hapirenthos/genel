@@ -63,7 +63,7 @@ const APPS: AppConfig[] = [
     id: "büyü",
     name: "Çocuğu Büyüt",
     icon: Baby,
-    color: "bg-indigo-300",
+    color: "bg-zinc-900",
     component: büyü,
   },
 ];
