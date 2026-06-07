@@ -8,6 +8,7 @@ import {
   Brain,
   Frown,
   Baby,
+  Slice,
 } from "lucide-react";
 
 // ==========================================
@@ -19,6 +20,7 @@ import nobet2 from "./apps/nobet2";
 import ishal from "./apps/ishal";
 import büyü from "./apps/büyüme";
 import malab from "./apps/malabsorbsiyon";
+import gc from "./apps/gc";
 type AppConfig = {
   id: string;
   name: string;
@@ -67,11 +69,18 @@ const APPS: AppConfig[] = [
     component: büyü,
   },
   {
-    id: 'malabsorbsiyon',
-    name: 'malabsorbsiyon',
-    icon:Frown,
-    color: 'bg-red-700',
+    id: "malabsorbsiyon",
+    name: "malabsorbsiyon",
+    icon: Frown,
+    color: "bg-red-700",
     component: malab,
+  },
+  {
+    id: "gc",
+    name: "Mide GC",
+    icon: Slice,
+    color: "bg-slate-500",
+    component: gc,
   },
 ];
 
