@@ -47,7 +47,7 @@ const APPS: AppConfig[] = [
     id: "nobet2",
     name: "Nöbet2",
     icon: Brain,
-    color: "bg-indigo-600",
+    color: "bg-red-700",
     component: nobet2,
   },
   {
