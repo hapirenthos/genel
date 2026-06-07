@@ -6,6 +6,7 @@ import {
   Stethoscope,
   PillBottle,
   Brain,
+  Frown,
 } from "lucide-react";
 
 // ==========================================
@@ -14,6 +15,7 @@ import {
 import nobet from "./apps/nobet";
 import ab from "./apps/antibiyotik";
 import nobet2 from "./apps/nobet2";
+import ishal from "./apps/ishal";
 
 type AppConfig = {
   id: string;
@@ -47,6 +49,13 @@ const APPS: AppConfig[] = [
     icon: Brain,
     color: "bg-indigo-600",
     component: nobet2,
+  },
+  {
+    id: "ishal",
+    name: "Kronik İshal",
+    icon: Frown,
+    color: "#7a4a00",
+    component: ishal,
   },
 ];
 
