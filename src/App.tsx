@@ -54,7 +54,7 @@ const APPS: AppConfig[] = [
     id: "ishal",
     name: "Kronik İshal",
     icon: Frown,
-    color: "#7a4a00",
+    color: "bg-yellow-900",
     component: ishal,
   },
 ];
