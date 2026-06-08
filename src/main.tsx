@@ -1,14 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
-import "./index.css";
+import "./index.css"; // Tailwind kuralları
 
-// --- EKLENTİNİN OFFINE MOTORUNU TETİKLEME KODU ---
-import { registerSW } from "vite-plugin-pwa";
-
-// Tarayıcıya "tüm dosyaları hafızaya dondur" emrini verir
-registerSW({ immediate: true });
-// -------------------------------------------------
+// NOT: VitePWA eklentisi 'injectRegister: inline' modunda olduğu için
+// buraya ekstra bir registerSW importu yapmamıza gerek yoktur.
+// Eklenti, sistemi arka planda otomatik olarak ayağa kaldırır.
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
