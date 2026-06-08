@@ -3,8 +3,15 @@ import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 
+// --- EKLENTİNİN OFFINE MOTORUNU TETİKLEME KODU ---
+import { registerSW } from "vite-plugin-pwa";
+
+// Tarayıcıya "tüm dosyaları hafızaya dondur" emrini verir
+registerSW({ immediate: true });
+// -------------------------------------------------
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
-  </React.StrictMode>,
+  </React.StrictMode>
 );
