@@ -11,6 +11,8 @@ import {
   Menu,
   X,
 } from "lucide-react";
+import { jsPDF } from "jspdf";
+import "jspdf-autotable";
 
 // --- TYPESCRIPT INTERFACES ---
 export interface FormData {
@@ -560,7 +562,56 @@ export default function HastaAnamnezMiniApp() {
     setExpandedPatients((prev) => ({ ...prev, [pId]: !prev[pId] }));
   };
 
-  const handlePrintCurrent = () => window.print();
+  const generatePDF = () => {
+    const doc = new jsPDF();
+
+    // Başlık
+    doc.setFontSize(16);
+    doc.text("Hasta Anamnez ve Klinik Değerlendirme Raporu", 105, 15, {
+      align: "center",
+    });
+    doc.setFontSize(10);
+    doc.text(`Tarih: ${formData.kimlik_gorusmeTarihi}`, 105, 22, {
+      align: "center",
+    });
+
+    // Temel Bilgiler
+    doc.autoTable({
+      startY: 30,
+      head: [["Alan", "Bilgi"]],
+      body: [
+        ["Hasta Adı", formData.kimlik_adSoyad],
+        ["TC No", formData.kimlik_tc],
+        ["Dosya No", formData.kimlik_dosyaNo],
+        [
+          "Yaş / Cinsiyet",
+          `${formData.kimlik_yas} / ${formData.kimlik_cinsiyet}`,
+        ],
+      ],
+      theme: "grid",
+    });
+
+    // ROS Özet
+    doc.text(
+      "Sistemlerin Gözden Geçirilmesi (ROS) Özeti",
+      14,
+      (doc as any).lastAutoTable.finalY + 10
+    );
+    doc.autoTable({
+      startY: (doc as any).lastAutoTable.finalY + 12,
+      head: [["Sistem", "Bulgu?"]],
+      body: [
+        ["Genel", formData.ped_rosGenel],
+        ["Deri", formData.ped_rosDeri],
+        ["Solunum", formData.ped_rosSolunum],
+        ["Kardiyovasküler", formData.ped_rosKVS],
+        ["Gastrointestinal", formData.ped_rosGI],
+      ],
+      theme: "striped",
+    });
+
+    doc.save(`Anamnez_${formData.kimlik_adSoyad || "rapor"}.pdf`);
+  };
 
   // --- PRINT RENDER HELPERS ---
   const val = (key: string) => (formData[key] ? formData[key] : "-");
@@ -726,10 +777,10 @@ export default function HastaAnamnezMiniApp() {
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
             <button
-              onClick={handlePrintCurrent}
-              className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-sm font-semibold transition-colors border border-slate-200"
+              onClick={generatePDF}
+              className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-semibold transition-colors shadow-sm"
             >
-              <Printer className="w-4 h-4" /> Yazdır
+              <Download className="w-4 h-4" /> PDF Olarak İndir
             </button>
             <button
               onClick={handleSave}
