@@ -10,6 +10,7 @@ import {
   Baby,
   Slice,
   BeanOff,
+  FileText,
 } from "lucide-react";
 
 // ==========================================
@@ -23,6 +24,7 @@ import büyü from "./apps/büyüme";
 import malab from "./apps/malabsorbsiyon";
 import gc from "./apps/gc";
 import aby from "./apps/abykby";
+import anamnez from "./apps/anamnez";
 
 type AppConfig = {
   id: string;
@@ -91,6 +93,13 @@ const APPS: AppConfig[] = [
     icon: BeanOff,
     color: "bg-amber-500",
     component: aby,
+  },
+  {
+    id: "anamnez",
+    name: "Anamnez",
+    icon: FileText,
+    color: "bg-green-400",
+    component: anamnez,
   },
 ];
 
