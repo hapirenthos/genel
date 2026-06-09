@@ -222,7 +222,6 @@ const SubHeader = ({ title }: { title: string }) => (
   </h3>
 );
 
-// width class'ları artık ekrana göre esneyecek şekilde ayarlandı (responsive w-full md:w-1/2 vb.)
 const InputGroup = ({
   label,
   name,
@@ -371,6 +370,52 @@ const YesNoDetail = ({
       <div className="mt-2 animate-fadeIn w-full">
         <TextAreaGroup
           label="Detaylar/Açıklama:"
+          name={detailName}
+          value={detailValue}
+          onChange={onChangeDetail}
+          rows={1}
+          width="w-full"
+        />
+      </div>
+    )}
+  </div>
+);
+
+// YENİ ROS (Sistem Gözden Geçirme) BİLEŞENİ
+const RosItem = ({
+  systemName,
+  symptoms,
+  radioName,
+  detailName,
+  radioValue,
+  detailValue,
+  onChangeRadio,
+  onChangeDetail,
+}: any) => (
+  <div className="mb-3 p-4 bg-slate-50 border border-slate-200 rounded-lg w-full flex flex-col justify-between">
+    <div className="flex flex-col mb-3">
+      <span className="text-sm font-bold text-slate-800">{systemName}</span>
+      <span className="text-xs text-slate-500 italic mt-1 leading-relaxed">
+        {symptoms}
+      </span>
+    </div>
+    <div className="flex items-center justify-between border-t border-slate-200 pt-3 mt-auto">
+      <span className="text-xs font-bold text-slate-600">Bulgu var mı?</span>
+      <RadioGroup
+        name={radioName}
+        value={radioValue}
+        width="w-auto"
+        options={[
+          { label: "Evet", value: "Evet" },
+          { label: "Hayır", value: "Hayır" },
+        ]}
+        onChange={onChangeRadio}
+      />
+    </div>
+    {radioValue === "Evet" && (
+      <div className="mt-3 animate-fadeIn w-full">
+        <TextAreaGroup
+          label="Pozitif Bulguları Detaylandırın:"
           name={detailName}
           value={detailValue}
           onChange={onChangeDetail}
@@ -639,7 +684,7 @@ export default function HastaAnamnezMiniApp() {
 
       {/* MAIN CONTENT WRAPPER */}
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden print:overflow-visible relative">
-        {/* TOP ACTION BAR */}
+        {/* TOP ACTION BAR - ESNEK/RESPONSIVE */}
         <div className="bg-white shadow-sm border-b border-slate-200 p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0 z-10 print:hidden">
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             {!sidebarOpen && (
@@ -695,7 +740,7 @@ export default function HastaAnamnezMiniApp() {
           </div>
         </div>
 
-        {/* SCROLLABLE FORM AREA (flex-wrap ve responsive width ile sığmayanlar alta kayar) */}
+        {/* SCROLLABLE FORM AREA */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-100 p-4 sm:p-6 print:p-0 print:overflow-visible">
           <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-7xl mx-auto p-4 sm:p-8 print:shadow-none print:border-none">
             {/* 1. ORTAK KİMLİK BİLGİLERİ */}
@@ -1133,9 +1178,11 @@ export default function HastaAnamnezMiniApp() {
                   />
 
                   <SubHeader title="Sistemlerin Gözden Geçirilmesi (ROS)" />
+                  {/* YENİ ROS LİSTESİ BURASI */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-3">
-                    <YesNoDetail
-                      label="Genel (Ateş, kilo kaybı vb.)"
+                    <RosItem
+                      systemName="Genel"
+                      symptoms="Ateş, kilo kaybı, halsizlik, çabuk yorulma vb."
                       radioName="ped_rosGenel"
                       detailName="ped_rosGenel_detay"
                       radioValue={formData.ped_rosGenel}
@@ -1143,8 +1190,9 @@ export default function HastaAnamnezMiniApp() {
                       onChangeRadio={handleRadioChange}
                       onChangeDetail={handleInputChange}
                     />
-                    <YesNoDetail
-                      label="Deri (Döküntü, sarılık vb.)"
+                    <RosItem
+                      systemName="Deri"
+                      symptoms="Döküntü, sarılık, kaşıntı, morarma, renk değişikliği vb."
                       radioName="ped_rosDeri"
                       detailName="ped_rosDeri_detay"
                       radioValue={formData.ped_rosDeri}
@@ -1152,8 +1200,9 @@ export default function HastaAnamnezMiniApp() {
                       onChangeRadio={handleRadioChange}
                       onChangeDetail={handleInputChange}
                     />
-                    <YesNoDetail
-                      label="HEENT (Baş ağrısı, görme vb.)"
+                    <RosItem
+                      systemName="Baş-Boyun (HEENT)"
+                      symptoms="Baş ağrısı, görme/işitme sorunları, burun kanaması, boğaz ağrısı vb."
                       radioName="ped_rosHEENT"
                       detailName="ped_rosHEENT_detay"
                       radioValue={formData.ped_rosHEENT}
@@ -1161,8 +1210,9 @@ export default function HastaAnamnezMiniApp() {
                       onChangeRadio={handleRadioChange}
                       onChangeDetail={handleInputChange}
                     />
-                    <YesNoDetail
-                      label="Solunum (Öksürük, hırıltı vb.)"
+                    <RosItem
+                      systemName="Solunum"
+                      symptoms="Öksürük, hırıltı, stridor, nefes darlığı, balgam vb."
                       radioName="ped_rosSolunum"
                       detailName="ped_rosSolunum_detay"
                       radioValue={formData.ped_rosSolunum}
@@ -1170,8 +1220,9 @@ export default function HastaAnamnezMiniApp() {
                       onChangeRadio={handleRadioChange}
                       onChangeDetail={handleInputChange}
                     />
-                    <YesNoDetail
-                      label="Kardiyovasküler (Çarpıntı vb.)"
+                    <RosItem
+                      systemName="Kardiyovasküler"
+                      symptoms="Çarpıntı, göğüs ağrısı, morarma (siyanoz), eforla yorulma vb."
                       radioName="ped_rosKVS"
                       detailName="ped_rosKVS_detay"
                       radioValue={formData.ped_rosKVS}
@@ -1179,8 +1230,9 @@ export default function HastaAnamnezMiniApp() {
                       onChangeRadio={handleRadioChange}
                       onChangeDetail={handleInputChange}
                     />
-                    <YesNoDetail
-                      label="Gastrointestinal (Bulantı vb.)"
+                    <RosItem
+                      systemName="Gastrointestinal"
+                      symptoms="Bulantı, kusma, ishal, kabızlık, hematemez vb."
                       radioName="ped_rosGI"
                       detailName="ped_rosGI_detay"
                       radioValue={formData.ped_rosGI}
@@ -1188,8 +1240,9 @@ export default function HastaAnamnezMiniApp() {
                       onChangeRadio={handleRadioChange}
                       onChangeDetail={handleInputChange}
                     />
-                    <YesNoDetail
-                      label="Genitoüriner (Sık idrar vb.)"
+                    <RosItem
+                      systemName="Genitoüriner"
+                      symptoms="Sık idrara çıkma, disüri, hematüri, enürezis vb."
                       radioName="ped_rosGU"
                       detailName="ped_rosGU_detay"
                       radioValue={formData.ped_rosGU}
@@ -1197,8 +1250,9 @@ export default function HastaAnamnezMiniApp() {
                       onChangeRadio={handleRadioChange}
                       onChangeDetail={handleInputChange}
                     />
-                    <YesNoDetail
-                      label="Kas-İskelet/Nöroloji (Ağrı vb.)"
+                    <RosItem
+                      systemName="Kas-İskelet ve Nörolojik"
+                      symptoms="Eklem ağrısı/şişliği, yürüyüş bozukluğu, nöbet, güçsüzlük vb."
                       radioName="ped_rosNorolojik"
                       detailName="ped_rosNorolojik_detay"
                       radioValue={formData.ped_rosNorolojik}
@@ -1774,17 +1828,14 @@ export default function HastaAnamnezMiniApp() {
           </div>
         </div>
 
-        {/* --- PRINT TEMPLATE --- */}
+        {/* --- PRINT TEMPLATE (TÜM DOSYAYI YAZDIRIR) --- */}
         <div className="hidden print:block w-full max-w-none text-black p-4 text-[11px] leading-snug font-serif">
           <div className="text-center mb-6 pb-2 border-b-2 border-black">
             <h1 className="text-xl font-bold uppercase tracking-widest">
               ÇOCUK KLİNİĞİ BÜTÜNLEŞİK ANAMNEZ VE MUAYENE RAPORU
             </h1>
             <p className="text-sm">
-              Rapor Tarihi: {new Date().toLocaleString("tr-TR")} |{" "}
-              {activeTab === "pediatri"
-                ? "Genel Pediatri Formu"
-                : "Romatoloji Formu"}
+              Rapor Tarihi: {new Date().toLocaleString("tr-TR")}
             </p>
           </div>
 
@@ -1826,7 +1877,7 @@ export default function HastaAnamnezMiniApp() {
 
           <div className="mb-4">
             <h2 className="font-bold text-sm bg-gray-200 p-1 mb-2">
-              VİTAL BULGULAR
+              VİTAL BULGULAR VE ANTROPOMETRİ
             </h2>
             <div className="grid grid-cols-5 gap-2">
               <p>
@@ -1856,257 +1907,251 @@ export default function HastaAnamnezMiniApp() {
             </div>
           </div>
 
-          {activeTab === "pediatri" && (
-            <div className="mb-4 border-t-2 border-black pt-2">
-              <h2 className="font-bold text-base mb-2">
-                GENEL PEDİATRİ VERİLERİ
-              </h2>
-              <p>
-                <strong>Ana Şikayet:</strong> {val("ped_sikayet")} |{" "}
-                <strong>Süre:</strong> {val("ped_sure")} |{" "}
-                <strong>Son Sağlıklı Zaman:</strong>{" "}
-                {val("ped_sonSaglikliZaman")}
-              </p>
-              <p>
-                <strong>HPI (OLD CARTS):</strong> Başlangıç: {val("ped_onset")}{" "}
-                | Yerleşim: {val("ped_location")} | Süre: {val("ped_duration")}{" "}
-                | Karakter: {val("ped_character")} | Artıran/Azaltan:{" "}
-                {val("ped_aggravating")} | İlişkili: {val("ped_related")} |
-                Zaman: {val("ped_timing")} | Şiddet: {val("ped_severity")} |
-                Ağrı Skoru: {val("ped_agriSkoru")}
-              </p>
+          {/* BÖLÜM 1: PEDİATRİ VERİLERİ (HER ZAMAN YAZDIRILIR) */}
+          <div className="mb-6 border-t-2 border-black pt-2 break-inside-avoid">
+            <h2 className="font-bold text-base mb-2 text-center bg-gray-100 py-1">
+              GENEL PEDİATRİ FORMU
+            </h2>
+            <p>
+              <strong>Ana Şikayet:</strong> {val("ped_sikayet")} |{" "}
+              <strong>Süre:</strong> {val("ped_sure")} |{" "}
+              <strong>Son Sağlıklı Zaman:</strong> {val("ped_sonSaglikliZaman")}
+            </p>
+            <p>
+              <strong>HPI (OLD CARTS):</strong> Başlangıç: {val("ped_onset")} |
+              Yerleşim: {val("ped_location")} | Süre: {val("ped_duration")} |
+              Karakter: {val("ped_character")} | Artıran/Azaltan:{" "}
+              {val("ped_aggravating")} | İlişkili: {val("ped_related")} | Zaman:{" "}
+              {val("ped_timing")} | Şiddet: {val("ped_severity")} | Ağrı Skoru:{" "}
+              {val("ped_agriSkoru")}
+            </p>
 
-              <h3 className="font-bold mt-2">Özgeçmiş (PMH)</h3>
-              <p>
-                <strong>Prenatal:</strong> Gravida/Para:{" "}
-                {val("ped_gravidaPara")} | Anne KG: {val("ped_anneKanGrubu")}{" "}
-                Baba KG: {val("ped_babaKanGrubu")} | Hst/İlaç:{" "}
-                {val("ped_gebelikHastalik")} | Tarama:{" "}
-                {val("ped_prenatalTarama")}
-              </p>
-              <p>
-                <strong>Natal:</strong> {val("ped_gebelikHaftasi")} hf, Şekli:{" "}
-                {val("ped_dogumSekli")}, Apgar: {val("ped_apgar")}, Resus:{" "}
-                {val("ped_resusitasyon")}
-              </p>
-              <p>
-                <strong>Postnatal:</strong> Kilo/Boy/BÇ:{" "}
-                {val("ped_dogumKiloBoy")} | Mekonyum: {val("ped_mekonyum")} |
-                Sarılık/NICU: {val("ped_sarilik")} | Taramalar:{" "}
-                {val("ped_topukKani")}
-              </p>
-              <p>
-                <strong>Beslenme/Aşı:</strong> AS: {val("ped_anneSutu")} | Mama:{" "}
-                {val("ped_formulMama")} | EkGıda: {val("ped_ekGida")} | Ulusal
-                Aşı: {val("ped_asiUyum")} | Özel Aşı: {val("ped_ozelAsi")}
-              </p>
-              <p>
-                <strong>Hastalık/Alerji:</strong> Geçirilmiş:{" "}
-                {val("ped_gecirilmisHastalik")} | Alerji: {val("ped_alerji")}
-              </p>
+            <h3 className="font-bold mt-2">Özgeçmiş (PMH)</h3>
+            <p>
+              <strong>Prenatal:</strong> Gravida/Para: {val("ped_gravidaPara")}{" "}
+              | Anne KG: {val("ped_anneKanGrubu")} Baba KG:{" "}
+              {val("ped_babaKanGrubu")} | Hst/İlaç: {val("ped_gebelikHastalik")}{" "}
+              | Tarama: {val("ped_prenatalTarama")}
+            </p>
+            <p>
+              <strong>Natal:</strong> {val("ped_gebelikHaftasi")} hf, Şekli:{" "}
+              {val("ped_dogumSekli")}, Apgar: {val("ped_apgar")}, Resus:{" "}
+              {val("ped_resusitasyon")}
+            </p>
+            <p>
+              <strong>Postnatal:</strong> Kilo/Boy/BÇ: {val("ped_dogumKiloBoy")}{" "}
+              | Mekonyum: {val("ped_mekonyum")} | Sarılık/NICU:{" "}
+              {val("ped_sarilik")} | Taramalar: {val("ped_topukKani")}
+            </p>
+            <p>
+              <strong>Beslenme/Aşı:</strong> AS: {val("ped_anneSutu")} | Mama:{" "}
+              {val("ped_formulMama")} | EkGıda: {val("ped_ekGida")} | Ulusal
+              Aşı: {val("ped_asiUyum")} | Özel Aşı: {val("ped_ozelAsi")}
+            </p>
+            <p>
+              <strong>Hastalık/Alerji:</strong> Geçirilmiş:{" "}
+              {val("ped_gecirilmisHastalik")} | Alerji: {val("ped_alerji")}
+            </p>
 
-              <h3 className="font-bold mt-2">Gelişim, Soygeçmiş & Sosyal</h3>
-              <p>
-                <strong>Gelişim:</strong> Motor: {val("ped_motor")} | Dil:{" "}
-                {val("ped_dil")} | Bilişsel: {val("ped_bilissel")}
-              </p>
-              <p>
-                <strong>Soygeçmiş:</strong> Akraba:{" "}
-                {ynVal("ped_akraba", "ped_akraba_detay")} | Ebeveyn Sğl:{" "}
-                {val("ped_ebeveynSaglik")} | Kronik: {val("ped_aileKronik")} |
-                BebekÖlm/Düşük: {val("ped_bebekOlum")}
-              </p>
-              <p>
-                <strong>Sosyal (IHELLP):</strong> {val("ped_sosyalDurum")}
-              </p>
+            <h3 className="font-bold mt-2">Gelişim, Soygeçmiş & Sosyal</h3>
+            <p>
+              <strong>Gelişim:</strong> Motor: {val("ped_motor")} | Dil:{" "}
+              {val("ped_dil")} | Bilişsel: {val("ped_bilissel")}
+            </p>
+            <p>
+              <strong>Soygeçmiş:</strong> Akraba:{" "}
+              {ynVal("ped_akraba", "ped_akraba_detay")} | Ebeveyn Sğl:{" "}
+              {val("ped_ebeveynSaglik")} | Kronik: {val("ped_aileKronik")} |
+              BebekÖlm/Düşük: {val("ped_bebekOlum")}
+            </p>
+            <p>
+              <strong>Sosyal (IHELLP):</strong> {val("ped_sosyalDurum")}
+            </p>
 
-              <h3 className="font-bold mt-2 border-b border-gray-300">
-                Sistemlerin Gözden Geçirilmesi (ROS)
-              </h3>
-              <div className="grid grid-cols-2 gap-x-4">
-                <p>
-                  <strong>Genel:</strong>{" "}
-                  {ynVal("ped_rosGenel", "ped_rosGenel_detay")}
-                </p>
-                <p>
-                  <strong>Deri:</strong>{" "}
-                  {ynVal("ped_rosDeri", "ped_rosDeri_detay")}
-                </p>
-                <p>
-                  <strong>HEENT:</strong>{" "}
-                  {ynVal("ped_rosHEENT", "ped_rosHEENT_detay")}
-                </p>
-                <p>
-                  <strong>Solunum:</strong>{" "}
-                  {ynVal("ped_rosSolunum", "ped_rosSolunum_detay")}
-                </p>
-                <p>
-                  <strong>KVS:</strong>{" "}
-                  {ynVal("ped_rosKVS", "ped_rosKVS_detay")}
-                </p>
-                <p>
-                  <strong>GİS:</strong> {ynVal("ped_rosGI", "ped_rosGI_detay")}
-                </p>
-                <p>
-                  <strong>GÜS:</strong> {ynVal("ped_rosGU", "ped_rosGU_detay")}
-                </p>
-                <p>
-                  <strong>Nörolojik:</strong>{" "}
-                  {ynVal("ped_rosNorolojik", "ped_rosNorolojik_detay")}
-                </p>
-              </div>
-
-              <h3 className="font-bold mt-2 border-b border-gray-300">
-                Sistemik Fizik Muayene
-              </h3>
-              <div className="grid grid-cols-2 gap-x-4">
-                <p>
-                  <strong>Cilt/Saç:</strong>{" "}
-                  {fmVal("ped_fmCilt", "ped_fmCilt_detay")}
-                </p>
-                <p>
-                  <strong>HEENT:</strong>{" "}
-                  {fmVal("ped_fmHEENT", "ped_fmHEENT_detay")}
-                </p>
-                <p>
-                  <strong>Solunum:</strong>{" "}
-                  {fmVal("ped_fmSolunum", "ped_fmSolunum_detay")}
-                </p>
-                <p>
-                  <strong>KVS:</strong> {fmVal("ped_fmKVS", "ped_fmKVS_detay")}
-                </p>
-                <p>
-                  <strong>Batın/Genital:</strong>{" "}
-                  {fmVal("ped_fmBatin", "ped_fmBatin_detay")}
-                </p>
-                <p>
-                  <strong>Endokrin:</strong>{" "}
-                  {fmVal("ped_fmEndokrin", "ped_fmEndokrin_detay")}
-                </p>
-                <p>
-                  <strong>Kas-İskelet:</strong>{" "}
-                  {fmVal("ped_fmKasIskelet", "ped_fmKasIskelet_detay")}
-                </p>
-                <p>
-                  <strong>Nörolojik:</strong>{" "}
-                  {fmVal("ped_fmNoro", "ped_fmNoro_detay")}
-                </p>
-              </div>
+            <h3 className="font-bold mt-2 border-b border-gray-300">
+              Sistemlerin Gözden Geçirilmesi (ROS)
+            </h3>
+            <div className="grid grid-cols-2 gap-x-4">
+              <p>
+                <strong>Genel:</strong>{" "}
+                {ynVal("ped_rosGenel", "ped_rosGenel_detay")}
+              </p>
+              <p>
+                <strong>Deri:</strong>{" "}
+                {ynVal("ped_rosDeri", "ped_rosDeri_detay")}
+              </p>
+              <p>
+                <strong>HEENT:</strong>{" "}
+                {ynVal("ped_rosHEENT", "ped_rosHEENT_detay")}
+              </p>
+              <p>
+                <strong>Solunum:</strong>{" "}
+                {ynVal("ped_rosSolunum", "ped_rosSolunum_detay")}
+              </p>
+              <p>
+                <strong>KVS:</strong> {ynVal("ped_rosKVS", "ped_rosKVS_detay")}
+              </p>
+              <p>
+                <strong>GİS:</strong> {ynVal("ped_rosGI", "ped_rosGI_detay")}
+              </p>
+              <p>
+                <strong>GÜS:</strong> {ynVal("ped_rosGU", "ped_rosGU_detay")}
+              </p>
+              <p>
+                <strong>Nörolojik:</strong>{" "}
+                {ynVal("ped_rosNorolojik", "ped_rosNorolojik_detay")}
+              </p>
             </div>
-          )}
 
-          {activeTab === "romatoloji" && (
-            <div className="mb-4 border-t-2 border-black pt-2">
-              <h2 className="font-bold text-base mb-2">
-                ÇOCUK ROMATOLOJİ VERİLERİ
-              </h2>
+            <h3 className="font-bold mt-2 border-b border-gray-300">
+              Sistemik Fizik Muayene
+            </h3>
+            <div className="grid grid-cols-2 gap-x-4">
               <p>
-                <strong>Yakınma:</strong> {val("rom_anaYakinma")} |{" "}
-                <strong>Süre/Tip:</strong> {val("rom_toplamSure")} (
-                {val("rom_akutMuKornikMi")}) | <strong>Başlangıç:</strong>{" "}
-                {val("rom_baslangic")} | <strong>Bel Ağrısı:</strong>{" "}
-                {val("rom_belAgrisi")}
+                <strong>Cilt/Saç:</strong>{" "}
+                {fmVal("ped_fmCilt", "ped_fmCilt_detay")}
               </p>
               <p>
-                <strong>Ağrı Karakteri:</strong> {val("rom_inflamatuarMekanik")}{" "}
-                | Sabah Tut.: {val("rom_sabahTutuklugu")} (
-                {val("rom_sabahTutukluguSuresi")}dk) | Eforla Hafifleme:{" "}
-                {val("rom_agriHafifleme")} | Eforla Şiddetlenme:{" "}
-                {val("rom_mekanikSiddetlenme")} | Gece İdiyopatik:{" "}
-                {val("rom_idiyopatikGece")}
+                <strong>HEENT:</strong>{" "}
+                {fmVal("ped_fmHEENT", "ped_fmHEENT_detay")}
               </p>
               <p>
-                <strong>Patern:</strong> {val("rom_eklemSayisi")} | Simetri:{" "}
-                {val("rom_simetrikMi")} | Migratuvar: {val("rom_migratuvarMi")}{" "}
-                | Gece Uyandıran: {val("rom_geceUykudanUyandiran")} |
-                Tetikleyici Enf.: {val("rom_tetikleyiciEnfeksiyon")}
+                <strong>Solunum:</strong>{" "}
+                {fmVal("ped_fmSolunum", "ped_fmSolunum_detay")}
               </p>
-
-              <h3 className="font-bold mt-2 border-b border-gray-300">
-                Ekstra-Artiküler ve Sistemik
-              </h3>
-              <div className="grid grid-cols-2 gap-x-4">
-                <p>
-                  <strong>Ateş Paterni:</strong> {val("rom_atesPaterni")}
-                </p>
-                <p>
-                  <strong>Kilo Kaybı:</strong>{" "}
-                  {ynVal("rom_kiloKaybi", "rom_kiloKaybi_detay")}
-                </p>
-                <p>
-                  <strong>Cilt (SLE):</strong>{" "}
-                  {ynVal("rom_ciltSLE", "rom_ciltSLE_detay")}
-                </p>
-                <p>
-                  <strong>Cilt (HSP):</strong>{" "}
-                  {ynVal("rom_ciltHSP", "rom_ciltHSP_detay")}
-                </p>
-                <p>
-                  <strong>Cilt (Psoriatik):</strong>{" "}
-                  {ynVal("rom_ciltPsoriatik", "rom_ciltPsoriatik_detay")}
-                </p>
-                <p>
-                  <strong>GİS:</strong>{" "}
-                  {ynVal("rom_giSemptom", "rom_giSemptom_detay")}
-                </p>
-                <p>
-                  <strong>Göz:</strong>{" "}
-                  {ynVal("rom_gozSemptom", "rom_gozSemptom_detay")}
-                </p>
-                <p>
-                  <strong>GÜS:</strong>{" "}
-                  {ynVal("rom_guSemptom", "rom_guSemptom_detay")}
-                </p>
-              </div>
-
-              <h3 className="font-bold mt-2 border-b border-gray-300">
-                Özgeçmiş / Soygeçmiş
-              </h3>
-              <div className="grid grid-cols-2 gap-x-4">
-                <p>
-                  <strong>İlaçlar:</strong> {val("rom_ilacKullanimi")}
-                </p>
-                <p>
-                  <strong>Kr. Enfeksiyon:</strong>{" "}
-                  {ynVal("rom_kronikEnfeksiyon", "rom_kronikEnfeksiyon_detay")}
-                </p>
-                <p>
-                  <strong>Aile (Romatizma vb):</strong>{" "}
-                  {ynVal("rom_aileRomatizma", "rom_aileRomatizma_detay")}
-                </p>
-                <p>
-                  <strong>Aile (Diyaliz):</strong>{" "}
-                  {ynVal("rom_aileDiyaliz", "rom_aileDiyaliz_detay")}
-                </p>
-                <p className="col-span-2">
-                  <strong>Aile (FMF/Periyodik):</strong>{" "}
-                  {ynVal("rom_aileFMF", "rom_aileFMF_detay")}
-                </p>
-              </div>
-
-              <h3 className="font-bold mt-2 border-b border-gray-300">
-                Romatolojik Fizik Muayene
-              </h3>
-              <div className="grid grid-cols-1 gap-y-1">
-                <p>
-                  <strong>İnspeksiyon (Look):</strong>{" "}
-                  {fmVal("rom_fmLook", "rom_fmLook_detay")}
-                </p>
-                <p>
-                  <strong>Palpasyon (Feel):</strong>{" "}
-                  {fmVal("rom_fmFeel", "rom_fmFeel_detay")}
-                </p>
-                <p>
-                  <strong>Hareket (Move):</strong>{" "}
-                  {fmVal("rom_fmMove", "rom_fmMove_detay")}
-                </p>
-                <p>
-                  <strong>Sistemik:</strong>{" "}
-                  {fmVal("rom_fmSistemik", "rom_fmSistemik_detay")}
-                </p>
-              </div>
+              <p>
+                <strong>KVS:</strong> {fmVal("ped_fmKVS", "ped_fmKVS_detay")}
+              </p>
+              <p>
+                <strong>Batın/Genital:</strong>{" "}
+                {fmVal("ped_fmBatin", "ped_fmBatin_detay")}
+              </p>
+              <p>
+                <strong>Endokrin:</strong>{" "}
+                {fmVal("ped_fmEndokrin", "ped_fmEndokrin_detay")}
+              </p>
+              <p>
+                <strong>Kas-İskelet:</strong>{" "}
+                {fmVal("ped_fmKasIskelet", "ped_fmKasIskelet_detay")}
+              </p>
+              <p>
+                <strong>Nörolojik:</strong>{" "}
+                {fmVal("ped_fmNoro", "ped_fmNoro_detay")}
+              </p>
             </div>
-          )}
+          </div>
+
+          {/* BÖLÜM 2: ROMATOLOJİ VERİLERİ (HER ZAMAN YAZDIRILIR) */}
+          <div className="mb-4 border-t-2 border-black pt-2 break-inside-avoid mt-8">
+            <h2 className="font-bold text-base mb-2 text-center bg-gray-100 py-1">
+              ÇOCUK ROMATOLOJİ FORMU
+            </h2>
+            <p>
+              <strong>Yakınma:</strong> {val("rom_anaYakinma")} |{" "}
+              <strong>Süre/Tip:</strong> {val("rom_toplamSure")} (
+              {val("rom_akutMuKornikMi")}) | <strong>Başlangıç:</strong>{" "}
+              {val("rom_baslangic")} | <strong>Bel Ağrısı:</strong>{" "}
+              {val("rom_belAgrisi")}
+            </p>
+            <p>
+              <strong>Ağrı Karakteri:</strong> {val("rom_inflamatuarMekanik")} |
+              Sabah Tut.: {val("rom_sabahTutuklugu")} (
+              {val("rom_sabahTutukluguSuresi")}dk) | Eforla Hafifleme:{" "}
+              {val("rom_agriHafifleme")} | Eforla Şiddetlenme:{" "}
+              {val("rom_mekanikSiddetlenme")} | Gece İdiyopatik:{" "}
+              {val("rom_idiyopatikGece")}
+            </p>
+            <p>
+              <strong>Patern:</strong> {val("rom_eklemSayisi")} | Simetri:{" "}
+              {val("rom_simetrikMi")} | Migratuvar: {val("rom_migratuvarMi")} |
+              Gece Uyandıran: {val("rom_geceUykudanUyandiran")} | Tetikleyici
+              Enf.: {val("rom_tetikleyiciEnfeksiyon")}
+            </p>
+
+            <h3 className="font-bold mt-2 border-b border-gray-300">
+              Ekstra-Artiküler ve Sistemik (Romatoloji)
+            </h3>
+            <div className="grid grid-cols-2 gap-x-4">
+              <p>
+                <strong>Ateş Paterni:</strong> {val("rom_atesPaterni")}
+              </p>
+              <p>
+                <strong>Kilo Kaybı:</strong>{" "}
+                {ynVal("rom_kiloKaybi", "rom_kiloKaybi_detay")}
+              </p>
+              <p>
+                <strong>Cilt (SLE):</strong>{" "}
+                {ynVal("rom_ciltSLE", "rom_ciltSLE_detay")}
+              </p>
+              <p>
+                <strong>Cilt (HSP):</strong>{" "}
+                {ynVal("rom_ciltHSP", "rom_ciltHSP_detay")}
+              </p>
+              <p>
+                <strong>Cilt (Psoriatik):</strong>{" "}
+                {ynVal("rom_ciltPsoriatik", "rom_ciltPsoriatik_detay")}
+              </p>
+              <p>
+                <strong>GİS:</strong>{" "}
+                {ynVal("rom_giSemptom", "rom_giSemptom_detay")}
+              </p>
+              <p>
+                <strong>Göz:</strong>{" "}
+                {ynVal("rom_gozSemptom", "rom_gozSemptom_detay")}
+              </p>
+              <p>
+                <strong>GÜS:</strong>{" "}
+                {ynVal("rom_guSemptom", "rom_guSemptom_detay")}
+              </p>
+            </div>
+
+            <h3 className="font-bold mt-2 border-b border-gray-300">
+              Özgeçmiş / Soygeçmiş (Romatoloji)
+            </h3>
+            <div className="grid grid-cols-2 gap-x-4">
+              <p>
+                <strong>İlaçlar:</strong> {val("rom_ilacKullanimi")}
+              </p>
+              <p>
+                <strong>Kr. Enfeksiyon:</strong>{" "}
+                {ynVal("rom_kronikEnfeksiyon", "rom_kronikEnfeksiyon_detay")}
+              </p>
+              <p>
+                <strong>Aile (Romatizma vb):</strong>{" "}
+                {ynVal("rom_aileRomatizma", "rom_aileRomatizma_detay")}
+              </p>
+              <p>
+                <strong>Aile (Diyaliz):</strong>{" "}
+                {ynVal("rom_aileDiyaliz", "rom_aileDiyaliz_detay")}
+              </p>
+              <p className="col-span-2">
+                <strong>Aile (FMF/Periyodik):</strong>{" "}
+                {ynVal("rom_aileFMF", "rom_aileFMF_detay")}
+              </p>
+            </div>
+
+            <h3 className="font-bold mt-2 border-b border-gray-300">
+              Romatolojik Fizik Muayene
+            </h3>
+            <div className="grid grid-cols-1 gap-y-1">
+              <p>
+                <strong>İnspeksiyon (Look):</strong>{" "}
+                {fmVal("rom_fmLook", "rom_fmLook_detay")}
+              </p>
+              <p>
+                <strong>Palpasyon (Feel):</strong>{" "}
+                {fmVal("rom_fmFeel", "rom_fmFeel_detay")}
+              </p>
+              <p>
+                <strong>Hareket (Move):</strong>{" "}
+                {fmVal("rom_fmMove", "rom_fmMove_detay")}
+              </p>
+              <p>
+                <strong>Sistemik:</strong>{" "}
+                {fmVal("rom_fmSistemik", "rom_fmSistemik_detay")}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
