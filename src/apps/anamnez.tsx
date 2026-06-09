@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   Save,
   FilePlus,
-  Printer,
+  Download,
   Stethoscope,
   ChevronRight,
   ChevronDown,
@@ -10,11 +10,16 @@ import {
   History,
   Menu,
   X,
+  Trash2,
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
 
 // --- TYPESCRIPT INTERFACES ---
+interface jsPDFWithAutoTable extends jsPDF {
+  autoTable: (options: any) => void;
+}
+
 export interface FormData {
   id: string;
   patientId: string;
@@ -233,7 +238,7 @@ const InputGroup = ({
   placeholder = "",
   width = "w-full",
 }: any) => (
-  <div className={`${width} p-1`}>
+  <div className={`${width} p-1 shrink-0`}>
     <label className="block text-xs font-semibold text-slate-600 mb-1 truncate">
       {label}
     </label>
@@ -256,7 +261,7 @@ const SelectGroup = ({
   options,
   width = "w-full",
 }: any) => (
-  <div className={`${width} p-1`}>
+  <div className={`${width} p-1 shrink-0`}>
     <label className="block text-xs font-semibold text-slate-600 mb-1 truncate">
       {label}
     </label>
@@ -284,7 +289,7 @@ const TextAreaGroup = ({
   rows = 2,
   width = "w-full",
 }: any) => (
-  <div className={`${width} p-1 mt-1`}>
+  <div className={`${width} p-1 mt-1 shrink-0`}>
     <label className="block text-xs font-semibold text-slate-600 mb-1 truncate">
       {label}
     </label>
@@ -306,7 +311,7 @@ const RadioGroup = ({
   onChange,
   width = "w-full",
 }: any) => (
-  <div className={`${width} p-1 mt-1`}>
+  <div className={`${width} p-1 mt-1 shrink-0`}>
     {label && (
       <label className="block text-xs font-semibold text-slate-600 mb-1 truncate">
         {label}
@@ -383,7 +388,6 @@ const YesNoDetail = ({
   </div>
 );
 
-// YENİ ROS (Sistem Gözden Geçirme) BİLEŞENİ
 const RosItem = ({
   systemName,
   symptoms,
@@ -401,7 +405,7 @@ const RosItem = ({
         {symptoms}
       </span>
     </div>
-    <div className="flex items-center justify-between border-t border-slate-200 pt-3 mt-auto">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-t border-slate-200 pt-3 mt-auto gap-2">
       <span className="text-xs font-bold text-slate-600">Bulgu var mı?</span>
       <RadioGroup
         name={radioName}
@@ -440,6 +444,14 @@ export default function HastaAnamnezMiniApp() {
     Record<string, boolean>
   >({});
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // PDF Modali için state'ler
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportRange, setExportRange] = useState({
+    start: "",
+    end: "",
+    includeAll: false,
+  });
 
   useEffect(() => {
     try {
@@ -541,6 +553,80 @@ export default function HastaAnamnezMiniApp() {
     if (window.innerWidth < 1024) setSidebarOpen(false);
   };
 
+  const deleteFile = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Dosyayı açmasını engelle
+    if (window.confirm("Bu kayıt kalıcı olarak silinecektir. Emin misiniz?")) {
+      const updated = savedFiles.filter((f) => f.id !== id);
+      setSavedFiles(updated);
+      localStorage.setItem("klinikApp_files", JSON.stringify(updated));
+      if (formData.id === id) {
+        setFormData({ ...initialFormData }); // Silinen dosya açıksa ekranı temizle
+      }
+    }
+  };
+
+  // JSPDF DIŞA AKTARMA FONKSİYONU
+  const exportPDF = () => {
+    const doc = new jsPDF() as jsPDFWithAutoTable;
+
+    // Aktarılacak dosyaları filtrele (Tümü veya Sadece aktif olan)
+    let filesToExport = exportRange.includeAll
+      ? savedFiles.filter((f) => {
+          if (!exportRange.start || !exportRange.end) return true; // Tarih girilmemişse hepsini al
+          const date = new Date(f.kimlik_gorusmeTarihi);
+          return (
+            date >= new Date(exportRange.start) &&
+            date <= new Date(exportRange.end)
+          );
+        })
+      : [formData];
+
+    if (filesToExport.length === 0 || !filesToExport[0].kimlik_adSoyad) {
+      alert("Dışa aktarılacak geçerli/kaydedilmiş bir dosya bulunamadı.");
+      return;
+    }
+
+    filesToExport.forEach((f, index) => {
+      if (index > 0) doc.addPage(); // Her kayıt yeni bir sayfada başlar
+
+      doc.setFontSize(16);
+      doc.text("Klinik Anamnez ve Degerlendirme Raporu", 14, 15);
+      doc.setFontSize(11);
+      doc.text(
+        `Hasta Adi: ${
+          f.kimlik_adSoyad || "Bilinmiyor"
+        } | Form: ${f.formType.toUpperCase()}`,
+        14,
+        22
+      );
+      doc.text(`Gorusme Tarihi: ${f.kimlik_gorusmeTarihi}`, 14, 28);
+
+      // Boş olmayan değerleri temiz bir formatta tabloya aktar
+      const tableData = Object.entries(f)
+        .filter(
+          ([k, v]) =>
+            v &&
+            k !== "id" &&
+            k !== "patientId" &&
+            k !== "formType" &&
+            k !== "lastModified"
+        )
+        .map(([k, v]) => [k.replace(/_/g, " ").toUpperCase(), String(v)]); // Anahtarları (key) okunabilir yap
+
+      doc.autoTable({
+        startY: 33,
+        head: [["Alan", "Kaydedilen Veri"]],
+        body: tableData,
+        theme: "grid",
+        styles: { fontSize: 9, cellPadding: 2 },
+        headStyles: { fillColor: [79, 70, 229] }, // İndigo rengi başlık
+      });
+    });
+
+    doc.save(`Anamnez_Raporu_${getTodayDate()}.pdf`);
+    setShowExportModal(false);
+  };
+
   const groupedPatients = useMemo(() => {
     const groups: Record<string, FormData[]> = {};
     savedFiles.forEach((f) => {
@@ -562,79 +648,13 @@ export default function HastaAnamnezMiniApp() {
     setExpandedPatients((prev) => ({ ...prev, [pId]: !prev[pId] }));
   };
 
-  const generatePDF = () => {
-    const doc = new jsPDF();
-
-    // Başlık
-    doc.setFontSize(16);
-    doc.text("Hasta Anamnez ve Klinik Değerlendirme Raporu", 105, 15, {
-      align: "center",
-    });
-    doc.setFontSize(10);
-    doc.text(`Tarih: ${formData.kimlik_gorusmeTarihi}`, 105, 22, {
-      align: "center",
-    });
-
-    // Temel Bilgiler
-    doc.autoTable({
-      startY: 30,
-      head: [["Alan", "Bilgi"]],
-      body: [
-        ["Hasta Adı", formData.kimlik_adSoyad],
-        ["TC No", formData.kimlik_tc],
-        ["Dosya No", formData.kimlik_dosyaNo],
-        [
-          "Yaş / Cinsiyet",
-          `${formData.kimlik_yas} / ${formData.kimlik_cinsiyet}`,
-        ],
-      ],
-      theme: "grid",
-    });
-
-    // ROS Özet
-    doc.text(
-      "Sistemlerin Gözden Geçirilmesi (ROS) Özeti",
-      14,
-      (doc as any).lastAutoTable.finalY + 10
-    );
-    doc.autoTable({
-      startY: (doc as any).lastAutoTable.finalY + 12,
-      head: [["Sistem", "Bulgu?"]],
-      body: [
-        ["Genel", formData.ped_rosGenel],
-        ["Deri", formData.ped_rosDeri],
-        ["Solunum", formData.ped_rosSolunum],
-        ["Kardiyovasküler", formData.ped_rosKVS],
-        ["Gastrointestinal", formData.ped_rosGI],
-      ],
-      theme: "striped",
-    });
-
-    doc.save(`Anamnez_${formData.kimlik_adSoyad || "rapor"}.pdf`);
-  };
-
-  // --- PRINT RENDER HELPERS ---
-  const val = (key: string) => (formData[key] ? formData[key] : "-");
-  const fmVal = (radioKey: string, detailKey: string) => {
-    const r = formData[radioKey];
-    if (!r) return "Değerlendirilmemiş";
-    if (r === "Hayır") return "Doğal ya da özelliksiz";
-    return formData[detailKey] ? formData[detailKey] : "Detay belirtilmemiş";
-  };
-  const ynVal = (radioKey: string, detailKey: string) => {
-    const r = formData[radioKey];
-    if (!r) return "-";
-    if (r === "Hayır") return "Hayır";
-    return `Evet (${formData[detailKey] || "Detay yok"})`;
-  };
-
   return (
     <div className="min-h-screen bg-slate-100 flex font-sans text-slate-800 selection:bg-blue-200 overflow-hidden">
       {/* SIDEBAR */}
       <div
         className={`${
           sidebarOpen ? "w-72" : "w-0 overflow-hidden"
-        } shrink-0 bg-slate-900 text-white flex flex-col h-screen sticky top-0 print:hidden transition-all duration-300 z-20`}
+        } shrink-0 bg-slate-900 text-white flex flex-col h-screen sticky top-0 transition-all duration-300 z-20`}
       >
         <div className="p-4 border-b border-slate-700 bg-slate-950 flex justify-between items-center whitespace-nowrap">
           <h1 className="text-lg font-bold flex items-center gap-2">
@@ -703,25 +723,35 @@ export default function HastaAnamnezMiniApp() {
                     {isExpanded && (
                       <div className="bg-slate-900/50 border-t border-slate-800">
                         {records.map((record) => (
-                          <button
+                          <div
                             key={record.id}
-                            onClick={() => loadFile(record)}
-                            className={`w-full text-left py-2 px-4 pl-9 text-xs flex flex-col gap-0.5 border-l-2 transition-colors ${
+                            className={`w-full text-left py-2 px-4 pl-9 text-xs flex justify-between items-center border-l-2 transition-colors cursor-pointer ${
                               formData.id === record.id
                                 ? "border-blue-500 bg-slate-800 text-white"
                                 : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/80"
                             }`}
+                            onClick={() => loadFile(record)}
                           >
-                            <span className="font-medium flex items-center gap-1.5">
-                              <History className="w-3 h-3" />{" "}
-                              {record.kimlik_gorusmeTarihi}
-                            </span>
-                            <span className="text-[10px] opacity-80">
-                              {record.formType === "pediatri"
-                                ? "Genel Pediatri"
-                                : "Çocuk Romatoloji"}
-                            </span>
-                          </button>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-medium flex items-center gap-1.5">
+                                <History className="w-3 h-3" />{" "}
+                                {record.kimlik_gorusmeTarihi}
+                              </span>
+                              <span className="text-[10px] opacity-80">
+                                {record.formType === "pediatri"
+                                  ? "Genel Pediatri"
+                                  : "Çocuk Romatoloji"}
+                              </span>
+                            </div>
+                            {/* ÇÖP KUTUSU / SİLME BUTONU */}
+                            <button
+                              onClick={(e) => deleteFile(record.id, e)}
+                              className="text-red-400 hover:text-red-500 p-1 hover:bg-slate-700 rounded transition-colors"
+                              title="Kaydı Sil"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -734,9 +764,9 @@ export default function HastaAnamnezMiniApp() {
       </div>
 
       {/* MAIN CONTENT WRAPPER */}
-      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden print:overflow-visible relative">
+      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden relative">
         {/* TOP ACTION BAR - ESNEK/RESPONSIVE */}
-        <div className="bg-white shadow-sm border-b border-slate-200 p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0 z-10 print:hidden">
+        <div className="bg-white shadow-sm border-b border-slate-200 p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0 z-10">
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             {!sidebarOpen && (
               <button
@@ -776,11 +806,12 @@ export default function HastaAnamnezMiniApp() {
             </div>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
+            {/* YENİ PDF İNDİRME BUTONU */}
             <button
-              onClick={generatePDF}
+              onClick={() => setShowExportModal(true)}
               className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-semibold transition-colors shadow-sm"
             >
-              <Download className="w-4 h-4" /> PDF Olarak İndir
+              <Download className="w-4 h-4" /> PDF İndir
             </button>
             <button
               onClick={handleSave}
@@ -792,8 +823,8 @@ export default function HastaAnamnezMiniApp() {
         </div>
 
         {/* SCROLLABLE FORM AREA */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-100 p-4 sm:p-6 print:p-0 print:overflow-visible">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-7xl mx-auto p-4 sm:p-8 print:shadow-none print:border-none">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-100 p-4 sm:p-6">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-7xl mx-auto p-4 sm:p-8">
             {/* 1. ORTAK KİMLİK BİLGİLERİ */}
             <div className="bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-100 mb-6">
               <SectionHeader title="I. KİMLİK BİLGİLERİ VE DEMOGRAFİ" />
@@ -1229,7 +1260,6 @@ export default function HastaAnamnezMiniApp() {
                   />
 
                   <SubHeader title="Sistemlerin Gözden Geçirilmesi (ROS)" />
-                  {/* YENİ ROS LİSTESİ BURASI */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-3">
                     <RosItem
                       systemName="Genel"
@@ -1878,333 +1908,86 @@ export default function HastaAnamnezMiniApp() {
             )}
           </div>
         </div>
+      </div>
 
-        {/* --- PRINT TEMPLATE (TÜM DOSYAYI YAZDIRIR) --- */}
-        <div className="hidden print:block w-full max-w-none text-black p-4 text-[11px] leading-snug font-serif">
-          <div className="text-center mb-6 pb-2 border-b-2 border-black">
-            <h1 className="text-xl font-bold uppercase tracking-widest">
-              ÇOCUK KLİNİĞİ BÜTÜNLEŞİK ANAMNEZ VE MUAYENE RAPORU
-            </h1>
-            <p className="text-sm">
-              Rapor Tarihi: {new Date().toLocaleString("tr-TR")}
-            </p>
-          </div>
-
-          <div className="mb-4">
-            <h2 className="font-bold text-sm bg-gray-200 p-1 mb-2">
-              I. KİMLİK BİLGİLERİ VE DEMOGRAFİ
+      {/* PDF İNDİRME MODALI (POPUP) */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl">
+            <h2 className="font-bold text-lg mb-4 text-slate-800 border-b pb-2">
+              PDF İndirme Ayarları
             </h2>
-            <div className="grid grid-cols-4 gap-2 border-b border-gray-300 pb-2">
-              <p>
-                <strong>Dosya No:</strong> {val("kimlik_dosyaNo")}
-              </p>
-              <p>
-                <strong>Hasta Adı:</strong> {val("kimlik_adSoyad")}
-              </p>
-              <p>
-                <strong>TC No:</strong> {val("kimlik_tc")}
-              </p>
-              <p>
-                <strong>Cinsiyet:</strong> {val("kimlik_cinsiyet")}
-              </p>
-              <p>
-                <strong>Doğum T.:</strong> {val("kimlik_dogumTarihi")}
-              </p>
-              <p>
-                <strong>Yaşı:</strong> {val("kimlik_yas")}
-              </p>
-              <p>
-                <strong>Görüşme T.:</strong> {val("kimlik_gorusmeTarihi")}
-              </p>
-              <p>
-                <strong>İnformant:</strong> {val("kimlik_informant")}
-              </p>
-            </div>
-            <p className="mt-1">
-              <strong>Adres/Yer:</strong> {val("kimlik_adres")} |{" "}
-              <strong>Güvenilirlik:</strong> {val("kimlik_guvenilirlik")}
-            </p>
-          </div>
 
-          <div className="mb-4">
-            <h2 className="font-bold text-sm bg-gray-200 p-1 mb-2">
-              VİTAL BULGULAR VE ANTROPOMETRİ
-            </h2>
-            <div className="grid grid-cols-5 gap-2">
-              <p>
-                <strong>Durum:</strong> {val("vital_genelDurum")}
-              </p>
-              <p>
-                <strong>Ateş:</strong> {val("vital_ates")}
-              </p>
-              <p>
-                <strong>Nabız:</strong> {val("vital_nabiz")}
-              </p>
-              <p>
-                <strong>Tansiyon:</strong> {val("vital_tansiyon")}
-              </p>
-              <p>
-                <strong>Solunum:</strong> {val("vital_solunum")}
-              </p>
-              <p>
-                <strong>Kilo:</strong> {val("vital_kilo")}
-              </p>
-              <p>
-                <strong>Boy:</strong> {val("vital_boy")}
-              </p>
-              <p>
-                <strong>Baş Çev.:</strong> {val("vital_basCevresi")}
-              </p>
-            </div>
-          </div>
+            <label className="flex items-center gap-3 mb-5 cursor-pointer text-slate-700 font-medium">
+              <input
+                type="checkbox"
+                checked={exportRange.includeAll}
+                onChange={(e) =>
+                  setExportRange({
+                    ...exportRange,
+                    includeAll: e.target.checked,
+                  })
+                }
+                className="w-5 h-5 text-indigo-600 rounded"
+              />
+              Birden fazla hasta kaydını birleştir
+            </label>
 
-          {/* BÖLÜM 1: PEDİATRİ VERİLERİ (HER ZAMAN YAZDIRILIR) */}
-          <div className="mb-6 border-t-2 border-black pt-2 break-inside-avoid">
-            <h2 className="font-bold text-base mb-2 text-center bg-gray-100 py-1">
-              GENEL PEDİATRİ FORMU
-            </h2>
-            <p>
-              <strong>Ana Şikayet:</strong> {val("ped_sikayet")} |{" "}
-              <strong>Süre:</strong> {val("ped_sure")} |{" "}
-              <strong>Son Sağlıklı Zaman:</strong> {val("ped_sonSaglikliZaman")}
-            </p>
-            <p>
-              <strong>HPI (OLD CARTS):</strong> Başlangıç: {val("ped_onset")} |
-              Yerleşim: {val("ped_location")} | Süre: {val("ped_duration")} |
-              Karakter: {val("ped_character")} | Artıran/Azaltan:{" "}
-              {val("ped_aggravating")} | İlişkili: {val("ped_related")} | Zaman:{" "}
-              {val("ped_timing")} | Şiddet: {val("ped_severity")} | Ağrı Skoru:{" "}
-              {val("ped_agriSkoru")}
-            </p>
+            {exportRange.includeAll && (
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-5 animate-fadeIn">
+                <p className="text-xs text-slate-500 mb-3">
+                  Sadece aşağıdaki tarih aralığındaki formları indir (boş
+                  bırakılırsa tüm kayıtlar indirilir):
+                </p>
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">
+                      Başlangıç Tarihi
+                    </label>
+                    <input
+                      type="date"
+                      className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-indigo-500"
+                      onChange={(e) =>
+                        setExportRange({
+                          ...exportRange,
+                          start: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">
+                      Bitiş Tarihi
+                    </label>
+                    <input
+                      type="date"
+                      className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-indigo-500"
+                      onChange={(e) =>
+                        setExportRange({ ...exportRange, end: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
-            <h3 className="font-bold mt-2">Özgeçmiş (PMH)</h3>
-            <p>
-              <strong>Prenatal:</strong> Gravida/Para: {val("ped_gravidaPara")}{" "}
-              | Anne KG: {val("ped_anneKanGrubu")} Baba KG:{" "}
-              {val("ped_babaKanGrubu")} | Hst/İlaç: {val("ped_gebelikHastalik")}{" "}
-              | Tarama: {val("ped_prenatalTarama")}
-            </p>
-            <p>
-              <strong>Natal:</strong> {val("ped_gebelikHaftasi")} hf, Şekli:{" "}
-              {val("ped_dogumSekli")}, Apgar: {val("ped_apgar")}, Resus:{" "}
-              {val("ped_resusitasyon")}
-            </p>
-            <p>
-              <strong>Postnatal:</strong> Kilo/Boy/BÇ: {val("ped_dogumKiloBoy")}{" "}
-              | Mekonyum: {val("ped_mekonyum")} | Sarılık/NICU:{" "}
-              {val("ped_sarilik")} | Taramalar: {val("ped_topukKani")}
-            </p>
-            <p>
-              <strong>Beslenme/Aşı:</strong> AS: {val("ped_anneSutu")} | Mama:{" "}
-              {val("ped_formulMama")} | EkGıda: {val("ped_ekGida")} | Ulusal
-              Aşı: {val("ped_asiUyum")} | Özel Aşı: {val("ped_ozelAsi")}
-            </p>
-            <p>
-              <strong>Hastalık/Alerji:</strong> Geçirilmiş:{" "}
-              {val("ped_gecirilmisHastalik")} | Alerji: {val("ped_alerji")}
-            </p>
-
-            <h3 className="font-bold mt-2">Gelişim, Soygeçmiş & Sosyal</h3>
-            <p>
-              <strong>Gelişim:</strong> Motor: {val("ped_motor")} | Dil:{" "}
-              {val("ped_dil")} | Bilişsel: {val("ped_bilissel")}
-            </p>
-            <p>
-              <strong>Soygeçmiş:</strong> Akraba:{" "}
-              {ynVal("ped_akraba", "ped_akraba_detay")} | Ebeveyn Sğl:{" "}
-              {val("ped_ebeveynSaglik")} | Kronik: {val("ped_aileKronik")} |
-              BebekÖlm/Düşük: {val("ped_bebekOlum")}
-            </p>
-            <p>
-              <strong>Sosyal (IHELLP):</strong> {val("ped_sosyalDurum")}
-            </p>
-
-            <h3 className="font-bold mt-2 border-b border-gray-300">
-              Sistemlerin Gözden Geçirilmesi (ROS)
-            </h3>
-            <div className="grid grid-cols-2 gap-x-4">
-              <p>
-                <strong>Genel:</strong>{" "}
-                {ynVal("ped_rosGenel", "ped_rosGenel_detay")}
-              </p>
-              <p>
-                <strong>Deri:</strong>{" "}
-                {ynVal("ped_rosDeri", "ped_rosDeri_detay")}
-              </p>
-              <p>
-                <strong>HEENT:</strong>{" "}
-                {ynVal("ped_rosHEENT", "ped_rosHEENT_detay")}
-              </p>
-              <p>
-                <strong>Solunum:</strong>{" "}
-                {ynVal("ped_rosSolunum", "ped_rosSolunum_detay")}
-              </p>
-              <p>
-                <strong>KVS:</strong> {ynVal("ped_rosKVS", "ped_rosKVS_detay")}
-              </p>
-              <p>
-                <strong>GİS:</strong> {ynVal("ped_rosGI", "ped_rosGI_detay")}
-              </p>
-              <p>
-                <strong>GÜS:</strong> {ynVal("ped_rosGU", "ped_rosGU_detay")}
-              </p>
-              <p>
-                <strong>Nörolojik:</strong>{" "}
-                {ynVal("ped_rosNorolojik", "ped_rosNorolojik_detay")}
-              </p>
-            </div>
-
-            <h3 className="font-bold mt-2 border-b border-gray-300">
-              Sistemik Fizik Muayene
-            </h3>
-            <div className="grid grid-cols-2 gap-x-4">
-              <p>
-                <strong>Cilt/Saç:</strong>{" "}
-                {fmVal("ped_fmCilt", "ped_fmCilt_detay")}
-              </p>
-              <p>
-                <strong>HEENT:</strong>{" "}
-                {fmVal("ped_fmHEENT", "ped_fmHEENT_detay")}
-              </p>
-              <p>
-                <strong>Solunum:</strong>{" "}
-                {fmVal("ped_fmSolunum", "ped_fmSolunum_detay")}
-              </p>
-              <p>
-                <strong>KVS:</strong> {fmVal("ped_fmKVS", "ped_fmKVS_detay")}
-              </p>
-              <p>
-                <strong>Batın/Genital:</strong>{" "}
-                {fmVal("ped_fmBatin", "ped_fmBatin_detay")}
-              </p>
-              <p>
-                <strong>Endokrin:</strong>{" "}
-                {fmVal("ped_fmEndokrin", "ped_fmEndokrin_detay")}
-              </p>
-              <p>
-                <strong>Kas-İskelet:</strong>{" "}
-                {fmVal("ped_fmKasIskelet", "ped_fmKasIskelet_detay")}
-              </p>
-              <p>
-                <strong>Nörolojik:</strong>{" "}
-                {fmVal("ped_fmNoro", "ped_fmNoro_detay")}
-              </p>
-            </div>
-          </div>
-
-          {/* BÖLÜM 2: ROMATOLOJİ VERİLERİ (HER ZAMAN YAZDIRILIR) */}
-          <div className="mb-4 border-t-2 border-black pt-2 break-inside-avoid mt-8">
-            <h2 className="font-bold text-base mb-2 text-center bg-gray-100 py-1">
-              ÇOCUK ROMATOLOJİ FORMU
-            </h2>
-            <p>
-              <strong>Yakınma:</strong> {val("rom_anaYakinma")} |{" "}
-              <strong>Süre/Tip:</strong> {val("rom_toplamSure")} (
-              {val("rom_akutMuKornikMi")}) | <strong>Başlangıç:</strong>{" "}
-              {val("rom_baslangic")} | <strong>Bel Ağrısı:</strong>{" "}
-              {val("rom_belAgrisi")}
-            </p>
-            <p>
-              <strong>Ağrı Karakteri:</strong> {val("rom_inflamatuarMekanik")} |
-              Sabah Tut.: {val("rom_sabahTutuklugu")} (
-              {val("rom_sabahTutukluguSuresi")}dk) | Eforla Hafifleme:{" "}
-              {val("rom_agriHafifleme")} | Eforla Şiddetlenme:{" "}
-              {val("rom_mekanikSiddetlenme")} | Gece İdiyopatik:{" "}
-              {val("rom_idiyopatikGece")}
-            </p>
-            <p>
-              <strong>Patern:</strong> {val("rom_eklemSayisi")} | Simetri:{" "}
-              {val("rom_simetrikMi")} | Migratuvar: {val("rom_migratuvarMi")} |
-              Gece Uyandıran: {val("rom_geceUykudanUyandiran")} | Tetikleyici
-              Enf.: {val("rom_tetikleyiciEnfeksiyon")}
-            </p>
-
-            <h3 className="font-bold mt-2 border-b border-gray-300">
-              Ekstra-Artiküler ve Sistemik (Romatoloji)
-            </h3>
-            <div className="grid grid-cols-2 gap-x-4">
-              <p>
-                <strong>Ateş Paterni:</strong> {val("rom_atesPaterni")}
-              </p>
-              <p>
-                <strong>Kilo Kaybı:</strong>{" "}
-                {ynVal("rom_kiloKaybi", "rom_kiloKaybi_detay")}
-              </p>
-              <p>
-                <strong>Cilt (SLE):</strong>{" "}
-                {ynVal("rom_ciltSLE", "rom_ciltSLE_detay")}
-              </p>
-              <p>
-                <strong>Cilt (HSP):</strong>{" "}
-                {ynVal("rom_ciltHSP", "rom_ciltHSP_detay")}
-              </p>
-              <p>
-                <strong>Cilt (Psoriatik):</strong>{" "}
-                {ynVal("rom_ciltPsoriatik", "rom_ciltPsoriatik_detay")}
-              </p>
-              <p>
-                <strong>GİS:</strong>{" "}
-                {ynVal("rom_giSemptom", "rom_giSemptom_detay")}
-              </p>
-              <p>
-                <strong>Göz:</strong>{" "}
-                {ynVal("rom_gozSemptom", "rom_gozSemptom_detay")}
-              </p>
-              <p>
-                <strong>GÜS:</strong>{" "}
-                {ynVal("rom_guSemptom", "rom_guSemptom_detay")}
-              </p>
-            </div>
-
-            <h3 className="font-bold mt-2 border-b border-gray-300">
-              Özgeçmiş / Soygeçmiş (Romatoloji)
-            </h3>
-            <div className="grid grid-cols-2 gap-x-4">
-              <p>
-                <strong>İlaçlar:</strong> {val("rom_ilacKullanimi")}
-              </p>
-              <p>
-                <strong>Kr. Enfeksiyon:</strong>{" "}
-                {ynVal("rom_kronikEnfeksiyon", "rom_kronikEnfeksiyon_detay")}
-              </p>
-              <p>
-                <strong>Aile (Romatizma vb):</strong>{" "}
-                {ynVal("rom_aileRomatizma", "rom_aileRomatizma_detay")}
-              </p>
-              <p>
-                <strong>Aile (Diyaliz):</strong>{" "}
-                {ynVal("rom_aileDiyaliz", "rom_aileDiyaliz_detay")}
-              </p>
-              <p className="col-span-2">
-                <strong>Aile (FMF/Periyodik):</strong>{" "}
-                {ynVal("rom_aileFMF", "rom_aileFMF_detay")}
-              </p>
-            </div>
-
-            <h3 className="font-bold mt-2 border-b border-gray-300">
-              Romatolojik Fizik Muayene
-            </h3>
-            <div className="grid grid-cols-1 gap-y-1">
-              <p>
-                <strong>İnspeksiyon (Look):</strong>{" "}
-                {fmVal("rom_fmLook", "rom_fmLook_detay")}
-              </p>
-              <p>
-                <strong>Palpasyon (Feel):</strong>{" "}
-                {fmVal("rom_fmFeel", "rom_fmFeel_detay")}
-              </p>
-              <p>
-                <strong>Hareket (Move):</strong>{" "}
-                {fmVal("rom_fmMove", "rom_fmMove_detay")}
-              </p>
-              <p>
-                <strong>Sistemik:</strong>{" "}
-                {fmVal("rom_fmSistemik", "rom_fmSistemik_detay")}
-              </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="px-5 py-2 border border-slate-300 text-slate-700 hover:bg-slate-100 font-medium rounded-lg transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={exportPDF}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg flex items-center gap-2 transition-colors"
+              >
+                <Download size={18} /> İndirmeyi Başlat
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
