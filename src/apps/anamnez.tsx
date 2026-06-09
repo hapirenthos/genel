@@ -1,823 +1,2032 @@
-
-import React, { useState, useEffect } from 'react';
-import { Save, FilePlus, FileText, Printer, Stethoscope } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from "react";
+import {
+  Save,
+  FilePlus,
+  Printer,
+  Stethoscope,
+  ChevronRight,
+  ChevronDown,
+  FolderOpen,
+  History,
+} from "lucide-react";
 
 // --- TYPESCRIPT INTERFACES ---
 export interface FormData {
-  id: string | null;
-  formType: 'pediatri' | 'romatoloji';
-  lastModified: string | null;
-  [key: string]: string | boolean | null; 
+  id: string;
+  patientId: string; // Dosya No veya isimden türetilen benzersiz ID (Gruplama için)
+  formType: "pediatri" | "romatoloji";
+  lastModified: string;
+  [key: string]: any;
 }
 
-interface SectionHeaderProps {
-  title: string;
-}
+// --- HELPERS ---
+const getTodayDate = () => new Date().toISOString().split("T")[0];
 
-interface SubHeaderProps {
-  title: string;
-}
+const calculateAge = (dob: string, targetDate: string) => {
+  if (!dob) return "";
+  const birthDate = new Date(dob);
+  const currentDate = targetDate ? new Date(targetDate) : new Date();
 
-interface InputGroupProps {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
-  type?: string;
-  placeholder?: string;
-  width?: string;
-}
+  let years = currentDate.getFullYear() - birthDate.getFullYear();
+  let months = currentDate.getMonth() - birthDate.getMonth();
+  let days = currentDate.getDate() - birthDate.getDate();
 
-interface TextAreaGroupProps {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  placeholder?: string;
-  rows?: number;
-}
-
-interface RadioOption {
-  label: string;
-  value: string;
-}
-
-interface RadioGroupProps {
-  label?: string;
-  name: string;
-  value: string;
-  options: RadioOption[];
-  onChange: (name: string, value: string) => void;
-}
-
-interface RosItemProps {
-  label: string;
-  radioName: string;
-  detailName: string;
-  radioValue: string;
-  detailValue: string;
-  onChangeRadio: (name: string, value: string) => void;
-  onChangeDetail: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-}
+  if (days < 0) {
+    months--;
+    const lastMonth = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+      0
+    );
+    days += lastMonth.getDate();
+  }
+  if (months < 0) {
+    years--;
+    months += 12;
+  }
+  if (years < 0) return "Geçersiz Tarih";
+  if (years > 0) return `${years} yıl ${months > 0 ? months + " ay" : ""}`;
+  if (months > 0) return `${months} ay ${days > 0 ? days + " gün" : ""}`;
+  return `${days} gün`;
+};
 
 // --- INITIAL STATE ---
 const initialFormData: FormData = {
-  id: null,
-  formType: 'pediatri',
-  lastModified: null,
-  
-  // ORTAK / KİMLİK BİLGİLERİ
-  kimlik_adSoyad: '',
-  kimlik_tc: '',
-  kimlik_dosyaNo: '', // YENİ EKLENEN ALAN
-  kimlik_dogumTarihi: '',
-  kimlik_yas: '',
-  kimlik_cinsiyet: '',
-  kimlik_adres: '',
-  kimlik_gorusmeTarihi: '',
-  kimlik_informant: '',
-  kimlik_guvenilirlik: '',
+  id: "",
+  patientId: "",
+  formType: "pediatri",
+  lastModified: "",
 
-  // VİTAL BULGULAR
-  vital_genelDurum: '',
-  vital_ates: '',
-  vital_nabiz: '',
-  vital_tansiyon: '',
-  vital_solunum: '',
-  vital_kilo: '',
-  vital_boy: '',
-  vital_basCevresi: '',
+  kimlik_adSoyad: "",
+  kimlik_tc: "",
+  kimlik_dosyaNo: "",
+  kimlik_dogumTarihi: "",
+  kimlik_yas: "",
+  kimlik_yas_manuel: false,
+  kimlik_cinsiyet: "",
+  kimlik_adres: "",
+  kimlik_gorusmeTarihi: getTodayDate(),
+  kimlik_informant: "",
+  kimlik_guvenilirlik: "",
 
-  // --- PEDİATRİ GENEL FORMU ---
-  ped_sikayet: '',
-  ped_sure: '',
-  ped_sonSaglikliZaman: '',
-  ped_onset: '',
-  ped_location: '',
-  ped_duration: '',
-  ped_character: '',
-  ped_aggravating: '',
-  ped_related: '',
-  ped_timing: '',
-  ped_severity: '',
-  ped_agriSkoru: '',
-  ped_gravidaPara: '',
-  ped_gebelikHastalik: '',
-  ped_prenatalTarama: '',
-  ped_kanGrubu: '',
-  ped_gebelikHaftasi: '',
-  ped_dogumSekli: '',
-  ped_apgar: '',
-  ped_dogumKiloBoy: '',
-  ped_mekonyum: '',
-  ped_sarilik: '',
-  ped_topukKani: '',
-  ped_anneSutu: '',
-  ped_formulMama: '',
-  ped_ekGida: '',
-  ped_asiUyum: '',
-  ped_ozelAsi: '',
-  ped_gecirilmisHastalik: '',
-  ped_alerji: '',
-  ped_motor: '',
-  ped_dil: '',
-  ped_bilissel: '',
-  ped_akraba: '',
-  ped_ebeveynSaglik: '',
-  ped_aileKronik: '',
-  ped_bebekOlum: '',
-  ped_sosyalDurum: '',
-  
-  // ROS (SİSTEMLERİN GÖZDEN GEÇİRİLMESİ) - GÜNCELLENDİ
-  ped_rosGenel: 'Hayır', ped_rosGenel_detay: '',
-  ped_rosDeri: 'Hayır', ped_rosDeri_detay: '',
-  ped_rosHEENT: 'Hayır', ped_rosHEENT_detay: '',
-  ped_rosSolunum: 'Hayır', ped_rosSolunum_detay: '',
-  ped_rosKVS: 'Hayır', ped_rosKVS_detay: '',
-  ped_rosGI: 'Hayır', ped_rosGI_detay: '',
-  ped_rosGU: 'Hayır', ped_rosGU_detay: '',
-  ped_rosNorolojik: 'Hayır', ped_rosNorolojik_detay: '',
-  
-  ped_fmCilt: '',
-  ped_fmHEENT: '',
-  ped_fmSolunum: '',
-  ped_fmKVS: '',
-  ped_fmBatin: '',
-  ped_fmEndokrin: '',
-  ped_fmKasIskelet: '',
-  ped_fmNoro: '',
+  vital_genelDurum: "",
+  vital_ates: "",
+  vital_nabiz: "",
+  vital_tansiyon: "",
+  vital_solunum: "",
+  vital_kilo: "",
+  vital_boy: "",
+  vital_basCevresi: "",
 
-  // --- ÇOCUK ROMATOLOJİ FORMU ---
-  rom_anaYakinma: '',
-  rom_toplamSure: '',
-  rom_akutMuKornikMi: '',
-  rom_baslangic: '',
-  rom_belAgrisi: '',
-  rom_inflamatuarMekanik: '',
-  rom_sabahTutuklugu: '',
-  rom_sabahTutukluguSuresi: '',
-  rom_agriHafifleme: '',
-  rom_mekanikSiddetlenme: '',
-  rom_idiyopatikGece: '',
-  rom_eklemSayisi: '',
-  rom_simetrikMi: '',
-  rom_migratuvarMi: '',
-  rom_geceUykudanUyandiran: '',
-  rom_tetikleyiciEnfeksiyon: '',
-  rom_atesPaterni: '',
-  rom_kiloKaybi: '',
-  rom_ciltSLE: '',
-  rom_ciltHSP: '',
-  rom_ciltPsoriatik: '',
-  rom_giSemptom: '',
-  rom_gozSemptom: '',
-  rom_guSemptom: '',
-  rom_kronikEnfeksiyon: '',
-  rom_ilacKullanimi: '',
-  rom_aileRomatizma: '',
-  rom_aileDiyaliz: '',
-  rom_aileFMF: '',
-  rom_posturTopallama: '',
-  rom_kasAtrofisiSislik: '',
-  rom_isiArtisiHassasiyet: '',
-  rom_efuzyonBulgusu: '',
-  rom_romOlcusu: '',
-  rom_organomegaliLAP: '',
-  rom_kardiyakUfurum: '',
+  // Pediatri
+  ped_sikayet: "",
+  ped_sure: "",
+  ped_sonSaglikliZaman: "",
+  ped_onset: "",
+  ped_location: "",
+  ped_duration: "",
+  ped_character: "",
+  ped_aggravating: "",
+  ped_related: "",
+  ped_timing: "",
+  ped_severity: "",
+  ped_agriSkoru: "",
+  ped_gravidaPara: "",
+  ped_gebelikHastalik: "",
+  ped_prenatalTarama: "",
+  ped_anneKanGrubu: "",
+  ped_babaKanGrubu: "",
+  ped_gebelikHaftasi: "",
+  ped_dogumSekli: "",
+  ped_apgar: "",
+  ped_resusitasyon: "",
+  ped_dogumKiloBoy: "",
+  ped_mekonyum: "",
+  ped_sarilik: "",
+  ped_topukKani: "",
+  ped_anneSutu: "",
+  ped_formulMama: "",
+  ped_ekGida: "",
+  ped_asiUyum: "",
+  ped_ozelAsi: "",
+  ped_gecirilmisHastalik: "",
+  ped_alerji: "",
+  ped_motor: "",
+  ped_dil: "",
+  ped_bilissel: "",
+  ped_akraba: "",
+  ped_akraba_detay: "",
+  ped_ebeveynSaglik: "",
+  ped_aileKronik: "",
+  ped_bebekOlum: "",
+  ped_sosyalDurum: "",
+
+  ped_rosGenel: "Hayır",
+  ped_rosGenel_detay: "",
+  ped_rosDeri: "Hayır",
+  ped_rosDeri_detay: "",
+  ped_rosHEENT: "Hayır",
+  ped_rosHEENT_detay: "",
+  ped_rosSolunum: "Hayır",
+  ped_rosSolunum_detay: "",
+  ped_rosKVS: "Hayır",
+  ped_rosKVS_detay: "",
+  ped_rosGI: "Hayır",
+  ped_rosGI_detay: "",
+  ped_rosGU: "Hayır",
+  ped_rosGU_detay: "",
+  ped_rosNorolojik: "Hayır",
+  ped_rosNorolojik_detay: "",
+
+  ped_fmCilt: "",
+  ped_fmCilt_detay: "",
+  ped_fmHEENT: "",
+  ped_fmHEENT_detay: "",
+  ped_fmSolunum: "",
+  ped_fmSolunum_detay: "",
+  ped_fmKVS: "",
+  ped_fmKVS_detay: "",
+  ped_fmBatin: "",
+  ped_fmBatin_detay: "",
+  ped_fmEndokrin: "",
+  ped_fmEndokrin_detay: "",
+  ped_fmKasIskelet: "",
+  ped_fmKasIskelet_detay: "",
+  ped_fmNoro: "",
+  ped_fmNoro_detay: "",
+
+  // Romatoloji
+  rom_anaYakinma: "",
+  rom_toplamSure: "",
+  rom_akutMuKornikMi: "",
+  rom_baslangic: "",
+  rom_belAgrisi: "",
+  rom_inflamatuarMekanik: "",
+  rom_sabahTutuklugu: "",
+  rom_sabahTutukluguSuresi: "",
+  rom_agriHafifleme: "",
+  rom_mekanikSiddetlenme: "",
+  rom_idiyopatikGece: "",
+  rom_eklemSayisi: "",
+  rom_simetrikMi: "",
+  rom_migratuvarMi: "",
+  rom_geceUykudanUyandiran: "",
+  rom_tetikleyiciEnfeksiyon: "",
+  rom_atesPaterni: "",
+  rom_kiloKaybi: "",
+  rom_kiloKaybi_detay: "",
+  rom_ciltSLE: "",
+  rom_ciltSLE_detay: "",
+  rom_ciltHSP: "",
+  rom_ciltHSP_detay: "",
+  rom_ciltPsoriatik: "",
+  rom_ciltPsoriatik_detay: "",
+  rom_giSemptom: "",
+  rom_giSemptom_detay: "",
+  rom_gozSemptom: "",
+  rom_gozSemptom_detay: "",
+  rom_guSemptom: "",
+  rom_guSemptom_detay: "",
+  rom_kronikEnfeksiyon: "",
+  rom_kronikEnfeksiyon_detay: "",
+  rom_ilacKullanimi: "",
+  rom_aileRomatizma: "",
+  rom_aileRomatizma_detay: "",
+  rom_aileDiyaliz: "",
+  rom_aileDiyaliz_detay: "",
+  rom_aileFMF: "",
+  rom_aileFMF_detay: "",
+
+  rom_fmLook: "",
+  rom_fmLook_detay: "",
+  rom_fmFeel: "",
+  rom_fmFeel_detay: "",
+  rom_fmMove: "",
+  rom_fmMove_detay: "",
+  rom_fmSistemik: "",
+  rom_fmSistemik_detay: "",
 };
 
-// --- REUSABLE PURE COMPONENTS (Artık dışarıda, klavye kapanmaz) ---
-const SectionHeader: React.FC<SectionHeaderProps> = ({ title }) => (
-  <div className="bg-slate-800 text-white p-2 mt-6 mb-4 rounded shadow-sm print:bg-gray-200 print:text-black print:border-b-2 print:border-black font-bold uppercase text-sm">
+// --- PURE UI COMPONENTS (To prevent focus loss) ---
+const SectionHeader = ({ title }: { title: string }) => (
+  <div className="bg-slate-800 text-white p-2 mt-6 mb-4 rounded shadow-sm font-bold uppercase text-sm">
     {title}
   </div>
 );
 
-const SubHeader: React.FC<SubHeaderProps> = ({ title }) => (
-  <h3 className="font-semibold text-slate-700 mt-4 mb-2 border-b border-slate-200 pb-1 print:text-black">{title}</h3>
+const SubHeader = ({ title }: { title: string }) => (
+  <h3 className="font-semibold text-slate-700 mt-4 mb-2 border-b border-slate-200 pb-1">
+    {title}
+  </h3>
 );
 
-const InputGroup: React.FC<InputGroupProps> = ({ label, name, value, onChange, type = "text", placeholder = "", width = "w-full" }) => (
+const InputGroup = ({
+  label,
+  name,
+  value,
+  onChange,
+  type = "text",
+  placeholder = "",
+  width = "w-full",
+}: any) => (
   <div className={`${width} p-1`}>
-    <label className="block text-xs font-semibold text-slate-600 mb-1 print:text-black">{label}</label>
+    <label className="block text-xs font-semibold text-slate-600 mb-1">
+      {label}
+    </label>
     <input
       type={type}
       name={name}
-      value={value}
+      value={value || ""}
       onChange={onChange}
       placeholder={placeholder}
-      className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 print:border-b print:border-t-0 print:border-l-0 print:border-r-0 print:rounded-none print:p-0 print:text-sm"
+      className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
     />
   </div>
 );
 
-const TextAreaGroup: React.FC<TextAreaGroupProps> = ({ label, name, value, onChange, placeholder = "", rows = 2 }) => (
+const SelectGroup = ({
+  label,
+  name,
+  value,
+  onChange,
+  options,
+  width = "w-full",
+}: any) => (
+  <div className={`${width} p-1`}>
+    <label className="block text-xs font-semibold text-slate-600 mb-1">
+      {label}
+    </label>
+    <select
+      name={name}
+      value={value || ""}
+      onChange={onChange}
+      className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+    >
+      <option value="">Seçiniz...</option>
+      {options.map((opt: string) => (
+        <option key={opt} value={opt}>
+          {opt}
+        </option>
+      ))}
+    </select>
+  </div>
+);
+
+const TextAreaGroup = ({ label, name, value, onChange, rows = 2 }: any) => (
   <div className="w-full p-1 mt-2">
-    <label className="block text-xs font-semibold text-slate-600 mb-1 print:text-black">{label}</label>
+    <label className="block text-xs font-semibold text-slate-600 mb-1">
+      {label}
+    </label>
     <textarea
       name={name}
-      value={value}
+      value={value || ""}
       onChange={onChange}
-      placeholder={placeholder}
       rows={rows}
-      className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 print:border-none print:p-0 print:text-sm print:resize-none"
+      className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
     />
   </div>
 );
 
-const RadioGroup: React.FC<RadioGroupProps> = ({ label, name, value, options, onChange }) => (
+const RadioGroup = ({ label, name, value, options, onChange }: any) => (
   <div className="p-1 mt-2">
-    {label && <label className="block text-xs font-semibold text-slate-600 mb-1 print:text-black">{label}</label>}
+    {label && (
+      <label className="block text-xs font-semibold text-slate-600 mb-1">
+        {label}
+      </label>
+    )}
     <div className="flex flex-wrap gap-4 mt-1">
-      {options.map(opt => (
-        <label key={opt.value} className="flex items-center space-x-2 text-sm cursor-pointer">
+      {options.map((opt: any) => (
+        <label
+          key={opt.value}
+          className="flex items-center space-x-2 text-sm cursor-pointer"
+        >
           <input
             type="radio"
             name={name}
             value={opt.value}
             checked={value === opt.value}
             onChange={() => onChange(name, opt.value)}
-            className="text-blue-600 focus:ring-blue-500"
+            className="text-blue-600 focus:ring-blue-500 w-4 h-4"
           />
-          <span className="print:font-medium">{opt.label}</span>
+          <span>{opt.label}</span>
         </label>
       ))}
     </div>
   </div>
 );
 
-const RosItem: React.FC<RosItemProps> = ({ label, radioName, detailName, radioValue, detailValue, onChangeRadio, onChangeDetail }) => (
-  <div className="mb-3 p-3 bg-slate-50 border border-slate-200 rounded-lg print:bg-transparent print:border-none print:p-0 print:mb-1">
+const YesNoDetail = ({
+  label,
+  radioName,
+  detailName,
+  radioValue,
+  detailValue,
+  onChangeRadio,
+  onChangeDetail,
+  isExam = false,
+}: any) => (
+  <div className="mb-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-      <span className="text-sm font-semibold text-slate-700 w-full sm:w-1/2">{label}</span>
+      <span className="text-sm font-semibold text-slate-700 w-full sm:w-1/2">
+        {label}
+      </span>
       <div className="w-full sm:w-1/2 flex sm:justify-end">
-        <RadioGroup 
-          name={radioName} 
-          value={radioValue} 
-          options={[{label:'Evet', value:'Evet'}, {label:'Hayır', value:'Hayır'}]} 
-          onChange={onChangeRadio} 
+        <RadioGroup
+          name={radioName}
+          value={radioValue}
+          options={
+            isExam
+              ? [
+                  { label: "Evet (Anormal bulgu)", value: "Evet" },
+                  { label: "Hayır (Doğal)", value: "Hayır" },
+                ]
+              : [
+                  { label: "Evet", value: "Evet" },
+                  { label: "Hayır", value: "Hayır" },
+                ]
+          }
+          onChange={onChangeRadio}
         />
       </div>
     </div>
-    {radioValue === 'Evet' && (
+    {radioValue === "Evet" && (
       <div className="mt-2 animate-fadeIn">
-        <TextAreaGroup 
-          label="Detaylar:" 
-          name={detailName} 
-          value={detailValue} 
-          onChange={onChangeDetail} 
-          rows={1} 
+        <TextAreaGroup
+          label="Detaylar/Açıklama:"
+          name={detailName}
+          value={detailValue}
+          onChange={onChangeDetail}
+          rows={1}
         />
       </div>
     )}
   </div>
 );
 
-// --- MAIN COMPONENT ---
+// --- MAIN APPLICATION ---
 export default function HastaAnamnezMiniApp() {
-  const [activeTab, setActiveTab] = useState<'pediatri' | 'romatoloji'>('pediatri');
+  const [activeTab, setActiveTab] = useState<"pediatri" | "romatoloji">(
+    "pediatri"
+  );
   const [savedFiles, setSavedFiles] = useState<FormData[]>([]);
   const [formData, setFormData] = useState<FormData>({ ...initialFormData });
+  const [expandedPatients, setExpandedPatients] = useState<
+    Record<string, boolean>
+  >({});
 
   useEffect(() => {
-    const loadData = () => {
-      try {
-        const stored = localStorage.getItem('pediatriApp_files');
-        if (stored) {
-          setSavedFiles(JSON.parse(stored));
-        }
-      } catch (e) {
-        console.error("Veriler yüklenemedi", e);
-      }
-    };
-    loadData();
+    try {
+      const stored = localStorage.getItem("klinikApp_files");
+      if (stored) setSavedFiles(JSON.parse(stored));
+    } catch (e) {
+      console.error(e);
+    }
   }, []);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    
-    let parsedValue: string | boolean = value;
-    if (type === 'checkbox') {
-      parsedValue = (e.target as HTMLInputElement).checked;
-    }
+  const handleInputChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => {
+      const newData = { ...prev, [name]: value };
 
-    setFormData(prev => ({
-      ...prev,
-      [name]: parsedValue
-    }));
+      // Yaş Otomatik Hesaplama Mantığı
+      if (name === "kimlik_yas") {
+        newData.kimlik_yas_manuel = true;
+      }
+      if (name === "kimlik_dogumTarihi" || name === "kimlik_gorusmeTarihi") {
+        newData.kimlik_yas_manuel = false;
+        newData.kimlik_yas = calculateAge(
+          newData.kimlik_dogumTarihi,
+          newData.kimlik_gorusmeTarihi
+        );
+      }
+
+      return newData;
+    });
   };
 
   const handleRadioChange = (name: string, value: string) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleNewFile = () => {
-    if (window.confirm("Kaydedilmemiş verileriniz silinecektir. Yeni dosya açmak istiyor musunuz?")) {
-      setFormData({ ...initialFormData, formType: activeTab });
+    if (
+      window.confirm(
+        "Kaydedilmemiş verileriniz silinecektir. Yeni dosya açmak istiyor musunuz?"
+      )
+    ) {
+      setFormData({
+        ...initialFormData,
+        formType: activeTab,
+        kimlik_gorusmeTarihi: getTodayDate(),
+      });
     }
   };
 
   const handleSave = () => {
-    if (!formData.kimlik_adSoyad) {
-      alert("Lütfen en azından hastanın 'Adı Soyadı' bilgisini giriniz.");
+    if (!formData.kimlik_adSoyad && !formData.kimlik_dosyaNo) {
+      alert(
+        "Lütfen en azından hastanın 'Adı Soyadı' veya 'Dosya No' bilgisini giriniz."
+      );
       return;
     }
 
     const newFiles = [...savedFiles];
-    const now = new Date().toLocaleString('tr-TR');
-    
+    const now = new Date().toLocaleString("tr-TR");
+
+    // Hasta ID oluştur (Dosya No varsa o, yoksa ismin küçük hali)
+    const pId = formData.kimlik_dosyaNo
+      ? formData.kimlik_dosyaNo.trim()
+      : formData.kimlik_adSoyad.trim().toLowerCase();
+
+    const recordToSave = {
+      ...formData,
+      id: formData.id || Date.now().toString(),
+      patientId: pId,
+      lastModified: now,
+      formType: activeTab,
+    };
+
     if (formData.id) {
-      const index = newFiles.findIndex(f => f.id === formData.id);
-      if (index !== -1) {
-        newFiles[index] = { ...formData, lastModified: now, formType: activeTab };
-      }
+      const index = newFiles.findIndex((f) => f.id === formData.id);
+      if (index !== -1) newFiles[index] = recordToSave;
     } else {
-      const newRecord: FormData = { 
-        ...formData, 
-        id: Date.now().toString(), 
-        lastModified: now,
-        formType: activeTab 
-      };
-      newFiles.push(newRecord);
-      setFormData(newRecord);
+      newFiles.push(recordToSave);
     }
 
     setSavedFiles(newFiles);
-    localStorage.setItem('pediatriApp_files', JSON.stringify(newFiles));
-    alert("Dosya başarıyla kaydedildi/güncellendi.");
+    setFormData(recordToSave);
+    localStorage.setItem("klinikApp_files", JSON.stringify(newFiles));
+    alert("Dosya başarıyla kaydedildi.");
   };
 
   const loadFile = (file: FormData) => {
-    if (window.confirm("Bu dosyayı açmak istiyor musunuz? Mevcut değişiklikler kaydedilmemişse kaybolur.")) {
-      setFormData(file);
-      setActiveTab(file.formType as 'pediatri' | 'romatoloji' || 'pediatri');
-    }
+    if (
+      formData.kimlik_adSoyad &&
+      formData.id !== file.id &&
+      !window.confirm(
+        "Mevcut formu kapatıp seçilen kaydı açmak istiyor musunuz?"
+      )
+    )
+      return;
+    setFormData(file);
+    setActiveTab(file.formType || "pediatri");
   };
 
-  const handlePrint = () => {
+  // Group patients for sidebar
+  const groupedPatients = useMemo(() => {
+    const groups: Record<string, FormData[]> = {};
+    savedFiles.forEach((f) => {
+      const key = f.patientId || "Bilinmeyen";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(f);
+    });
+    // Her hastanın kayıtlarını tarihe göre yeniden eskiye sırala
+    Object.keys(groups).forEach((k) => {
+      groups[k].sort(
+        (a, b) =>
+          new Date(b.kimlik_gorusmeTarihi).getTime() -
+          new Date(a.kimlik_gorusmeTarihi).getTime()
+      );
+    });
+    return groups;
+  }, [savedFiles]);
+
+  const togglePatientExpand = (pId: string) => {
+    setExpandedPatients((prev) => ({ ...prev, [pId]: !prev[pId] }));
+  };
+
+  const handlePrintCurrent = () => {
     window.print();
   };
 
-  // --- RENDER HELPERS ---
-  const renderKimlikBilgileri = () => (
-    <div className="bg-white p-4 rounded-lg shadow-sm mb-4 border border-slate-100 print:shadow-none print:border-none print:p-0">
-      <SectionHeader title="I. KİMLİK BİLGİLERİ VE DEMOGRAFİ" />
-      <div className="flex flex-wrap -mx-1">
-        <InputGroup label="Hastanın Adı Soyadı" name="kimlik_adSoyad" value={(formData.kimlik_adSoyad as string) || ''} onChange={handleInputChange} width="w-full md:w-1/3" />
-        <InputGroup label="TC Kimlik No (Opsiyonel)" name="kimlik_tc" value={(formData.kimlik_tc as string) || ''} onChange={handleInputChange} width="w-full md:w-1/3" />
-        <InputGroup label="Hasta No / Dosya No" name="kimlik_dosyaNo" value={(formData.kimlik_dosyaNo as string) || ''} onChange={handleInputChange} width="w-full md:w-1/3" />
-        
-        <InputGroup label="Doğum Tarihi" name="kimlik_dogumTarihi" type="date" value={(formData.kimlik_dogumTarihi as string) || ''} onChange={handleInputChange} width="w-full md:w-1/4" />
-        <InputGroup label="Kesin Yaşı" name="kimlik_yas" value={(formData.kimlik_yas as string) || ''} onChange={handleInputChange} width="w-full md:w-1/4" />
-        <div className="w-full md:w-1/4 p-1">
-          <label className="block text-xs font-semibold text-slate-600 mb-1">Cinsiyeti</label>
-          <select name="kimlik_cinsiyet" value={(formData.kimlik_cinsiyet as string) || ''} onChange={handleInputChange} className="w-full border border-slate-300 rounded p-2 text-sm print:appearance-none print:border-b print:rounded-none">
-            <option value="">Seçiniz...</option>
-            <option value="Kız">Kız</option>
-            <option value="Erkek">Erkek</option>
-          </select>
-        </div>
-        <InputGroup label="Görüşme Tarihi" name="kimlik_gorusmeTarihi" type="date" value={(formData.kimlik_gorusmeTarihi as string) || ''} onChange={handleInputChange} width="w-full md:w-1/4" />
-        
-        <InputGroup label="Doğum Yeri ve Güncel Adresi" name="kimlik_adres" value={(formData.kimlik_adres as string) || ''} onChange={handleInputChange} width="w-full" />
-        <InputGroup label="Bilgiyi Veren Kişi (İnformant) / Yakınlığı" name="kimlik_informant" value={(formData.kimlik_informant as string) || ''} onChange={handleInputChange} width="w-full md:w-1/2" />
-        <InputGroup label="Bilginin Güvenilirliği" name="kimlik_guvenilirlik" placeholder="Kısıtlılık, dil bariyeri vb." value={(formData.kimlik_guvenilirlik as string) || ''} onChange={handleInputChange} width="w-full md:w-1/2" />
-      </div>
-    </div>
-  );
-
-  const renderVitalBulgular = () => (
-    <div className="bg-white p-4 rounded-lg shadow-sm mb-4 border border-slate-100 print:shadow-none print:border-none print:p-0">
-       <SectionHeader title="VİTAL BULGULAR VE ANTROPOMETRİ" />
-       <div className="flex flex-wrap -mx-1">
-         <RadioGroup 
-            label="Genel Durum" 
-            name="vital_genelDurum" 
-            value={(formData.vital_genelDurum as string) || ''}
-            options={[{label: 'İyi', value: 'İyi'}, {label: 'Orta', value: 'Orta'}, {label: 'Toksik', value: 'Toksik'}]} 
-            onChange={handleRadioChange}
-          />
-         <div className="w-full flex flex-wrap mt-2">
-            <InputGroup label="Ateş (°C)" name="vital_ates" value={(formData.vital_ates as string) || ''} onChange={handleInputChange} width="w-1/2 md:w-1/4" />
-            <InputGroup label="Nabız (/dk)" name="vital_nabiz" value={(formData.vital_nabiz as string) || ''} onChange={handleInputChange} width="w-1/2 md:w-1/4" />
-            <InputGroup label="Tansiyon (mmHg)" name="vital_tansiyon" value={(formData.vital_tansiyon as string) || ''} onChange={handleInputChange} width="w-1/2 md:w-1/4" />
-            <InputGroup label="Solunum (/dk)" name="vital_solunum" value={(formData.vital_solunum as string) || ''} onChange={handleInputChange} width="w-1/2 md:w-1/4" />
-            <InputGroup label="Ağırlık (kg) / Z-Skor" name="vital_kilo" value={(formData.vital_kilo as string) || ''} onChange={handleInputChange} width="w-1/3" />
-            <InputGroup label="Boy (cm) / Z-Skor" name="vital_boy" value={(formData.vital_boy as string) || ''} onChange={handleInputChange} width="w-1/3" />
-            <InputGroup label="Baş Çevresi (cm)" name="vital_basCevresi" value={(formData.vital_basCevresi as string) || ''} onChange={handleInputChange} width="w-1/3" />
-         </div>
-       </div>
-    </div>
-  );
+  // --- PRINT RENDER HELPERS ---
+  const val = (key: string) => (formData[key] ? formData[key] : "-");
+  const fmVal = (radioKey: string, detailKey: string) => {
+    const r = formData[radioKey];
+    if (!r) return "Değerlendirilmemiş";
+    if (r === "Hayır") return "Doğal ya da özelliksiz";
+    return formData[detailKey] ? formData[detailKey] : "Detay belirtilmemiş";
+  };
+  const ynVal = (radioKey: string, detailKey: string) => {
+    const r = formData[radioKey];
+    if (!r) return "-";
+    if (r === "Hayır") return "Hayır";
+    return `Evet (${formData[detailKey] || "Detay yok"})`;
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex font-sans text-slate-800">
-      
-      {/* SIDEBAR */}
-      <div className="w-64 bg-slate-900 text-white flex flex-col h-screen sticky top-0 print:hidden shadow-xl z-10">
-        <div className="p-4 border-b border-slate-700">
+    <div className="min-h-screen bg-slate-100 flex font-sans text-slate-800 selection:bg-blue-200">
+      {/* SIDEBAR (Interactive UI - Hidden on Print) */}
+      <div className="w-72 bg-slate-900 text-white flex flex-col h-screen sticky top-0 print:hidden shadow-2xl z-20 shrink-0">
+        <div className="p-4 border-b border-slate-700 bg-slate-950">
           <h1 className="text-lg font-bold flex items-center gap-2">
-            <Stethoscope className="w-6 h-6 text-blue-400" />
+            <Stethoscope className="w-5 h-5 text-blue-400" />
             Klinik Arşiv
           </h1>
-          <p className="text-xs text-slate-400 mt-1">Anamnez ve Dosya Yönetimi</p>
         </div>
-        
-        <div className="p-4 space-y-3">
-          <button 
+
+        <div className="p-4">
+          <button
             onClick={handleNewFile}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded text-sm transition-colors font-medium"
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white py-2.5 px-4 rounded-md text-sm font-semibold transition-all shadow-md"
           >
-            <FilePlus className="w-4 h-4" /> Yeni Dosya
+            <FilePlus className="w-4 h-4" /> Yeni Hasta / Form
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 pt-0">
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Kaydedilen Dosyalar</h2>
-          {savedFiles.length === 0 ? (
-            <p className="text-xs text-slate-500 italic">Henüz kaydedilmiş dosya yok.</p>
+        <div className="flex-1 overflow-y-auto p-3">
+          <h2 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">
+            Kayıtlı Hastalar
+          </h2>
+          {Object.keys(groupedPatients).length === 0 ? (
+            <p className="text-xs text-slate-500 italic px-1">
+              Henüz kayıt yok.
+            </p>
           ) : (
-            <ul className="space-y-2">
-              {savedFiles.map(file => (
-                <li key={file.id}>
-                  <button 
-                    onClick={() => loadFile(file)}
-                    className={`w-full text-left p-3 rounded flex flex-col gap-1 transition-colors border-l-4 ${formData.id === file.id ? 'bg-slate-800 border-blue-500' : 'bg-slate-800/50 border-transparent hover:bg-slate-800'}`}
+            <div className="space-y-1">
+              {Object.entries(groupedPatients).map(([pId, records]) => {
+                const latestRecord = records[0];
+                const displayName = latestRecord.kimlik_adSoyad || "İsimsiz";
+                const isExpanded = expandedPatients[pId];
+
+                return (
+                  <div
+                    key={pId}
+                    className="bg-slate-800/40 rounded-lg overflow-hidden border border-slate-700/50"
                   >
-                    <span className="text-sm font-medium text-slate-200 truncate">{file.kimlik_adSoyad || 'İsimsiz Hasta'}</span>
-                    <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                      <FileText className="w-3 h-3" />
-                      {file.formType === 'pediatri' ? 'Genel Pediatri' : 'Çocuk Romatoloji'}
-                    </span>
-                    <span className="text-[10px] text-slate-500">{file.lastModified}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+                    <button
+                      onClick={() => togglePatientExpand(pId)}
+                      className="w-full flex items-center justify-between p-3 hover:bg-slate-800 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <FolderOpen className="w-4 h-4 text-blue-400 shrink-0" />
+                        <div className="flex flex-col text-left truncate">
+                          <span className="text-sm font-semibold text-slate-200 truncate">
+                            {displayName}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            Dosya No: {latestRecord.kimlik_dosyaNo || "-"}
+                          </span>
+                        </div>
+                      </div>
+                      {isExpanded ? (
+                        <ChevronDown className="w-4 h-4 text-slate-400" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                      )}
+                    </button>
+
+                    {isExpanded && (
+                      <div className="bg-slate-900/50 border-t border-slate-800">
+                        {records.map((record) => (
+                          <button
+                            key={record.id}
+                            onClick={() => loadFile(record)}
+                            className={`w-full text-left py-2 px-4 pl-9 text-xs flex flex-col gap-0.5 border-l-2 transition-colors ${
+                              formData.id === record.id
+                                ? "border-blue-500 bg-slate-800 text-white"
+                                : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/80"
+                            }`}
+                          >
+                            <span className="font-medium flex items-center gap-1.5">
+                              <History className="w-3 h-3" />{" "}
+                              {record.kimlik_gorusmeTarihi}
+                            </span>
+                            <span className="text-[10px] opacity-80">
+                              {record.formType === "pediatri"
+                                ? "Genel Pediatri"
+                                : "Çocuk Romatoloji"}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
 
-      {/* MAIN CONTENT */}
-      <div className="flex-1 flex flex-col w-full max-w-5xl mx-auto bg-white shadow-xl min-h-screen relative print:shadow-none print:w-full print:max-w-none">
-        
-        {/* TOP BAR */}
-        <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex justify-between items-center z-10 print:hidden">
-          <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg">
-            <button
-              onClick={() => { setActiveTab('pediatri'); setFormData(p => ({...p, formType: 'pediatri'})) }}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'pediatri' ? 'bg-white shadow text-blue-700' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              Genel Pediatri
-            </button>
-            <button
-              onClick={() => { setActiveTab('romatoloji'); setFormData(p => ({...p, formType: 'romatoloji'})) }}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'romatoloji' ? 'bg-white shadow text-blue-700' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              Çocuk Romatoloji
-            </button>
-          </div>
-
-          <div className="flex space-x-3">
-            <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-sm font-medium transition-colors">
-              <Printer className="w-4 h-4" /> Yazdır (PDF)
-            </button>
-            <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors shadow-sm">
-              <Save className="w-4 h-4" /> {formData.id ? 'Değişiklikleri Kaydet' : 'Dosyayı Kaydet'}
-            </button>
-          </div>
-        </div>
-
-        {/* PRINT HEADER */}
-        <div className="hidden print:block text-center mb-8 border-b-2 border-black pb-4 mt-8">
-          <h1 className="text-2xl font-bold uppercase">{activeTab === 'pediatri' ? 'GENEL PEDİATRİ ANAMNEZ VE FİZİK MUAYENE FORMU' : 'ÇOCUK ROMATOLOJİ SPESİFİK ANAMNEZ VE KLİNİK DEĞERLENDİRME FORMU'}</h1>
-        </div>
-
-        {/* FORM AREA */}
-        <div className="p-8 print:p-0">
-          
-          {renderKimlikBilgileri()}
-
-          {/* ========================================== */}
-          {/* TAB 1: GENEL PEDİATRİ                      */}
-          {/* ========================================== */}
-          {activeTab === 'pediatri' && (
-            <div className="space-y-6 animate-fadeIn">
-              
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 print:shadow-none print:border-none print:p-0">
-                <SectionHeader title="II. BAŞVURU NEDENİ (Ana Yakınma)" />
-                <TextAreaGroup label="Şikayet (Hastanın/Ailenin ifadeleriyle)" name="ped_sikayet" value={(formData.ped_sikayet as string) || ''} onChange={handleInputChange} />
-                <InputGroup label="Şikayetin Süresi" name="ped_sure" value={(formData.ped_sure as string) || ''} onChange={handleInputChange} />
-              </div>
-
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 print:shadow-none print:border-none print:p-0 print:break-inside-avoid">
-                <SectionHeader title="III. MEVCUT HASTALIK ÖYKÜSÜ (HPI)" />
-                <InputGroup label="En son tam sağlıklı hissedilen zaman" name="ped_sonSaglikliZaman" value={(formData.ped_sonSaglikliZaman as string) || ''} onChange={handleInputChange} />
-                
-                <SubHeader title="OLD CARTS Analizi" />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <TextAreaGroup label="Başlangıç (Onset) - Nasıl başladı?" name="ped_onset" value={(formData.ped_onset as string) || ''} onChange={handleInputChange} rows={1}/>
-                  <TextAreaGroup label="Yerleşim ve Yayılım (Location/Radiation)" name="ped_location" value={(formData.ped_location as string) || ''} onChange={handleInputChange} rows={1}/>
-                  <TextAreaGroup label="Süre (Duration)" name="ped_duration" value={(formData.ped_duration as string) || ''} onChange={handleInputChange} rows={1}/>
-                  <TextAreaGroup label="Karakter (Character) - Yanıcı, batıcı vb." name="ped_character" value={(formData.ped_character as string) || ''} onChange={handleInputChange} rows={1}/>
-                  <TextAreaGroup label="Artıran/Azaltan Faktörler (Aggravating/Alleviating)" name="ped_aggravating" value={(formData.ped_aggravating as string) || ''} onChange={handleInputChange} rows={1}/>
-                  <TextAreaGroup label="İlişkili Semptomlar (Related Symptoms)" name="ped_related" value={(formData.ped_related as string) || ''} onChange={handleInputChange} rows={1}/>
-                  <TextAreaGroup label="Zamanlama (Timing) - Günün hangi saati?" name="ped_timing" value={(formData.ped_timing as string) || ''} onChange={handleInputChange} rows={1}/>
-                  <TextAreaGroup label="Şiddet (Severity) - Uyku/Oyun etkileşimi" name="ped_severity" value={(formData.ped_severity as string) || ''} onChange={handleInputChange} rows={1}/>
-                </div>
-                <div className="mt-2 w-1/3">
-                  <InputGroup label="Ağrı Skoru (FACES, VAS vb.)" name="ped_agriSkoru" value={(formData.ped_agriSkoru as string) || ''} onChange={handleInputChange} />
-                </div>
-              </div>
-
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 print:shadow-none print:border-none print:p-0 print:break-inside-avoid">
-                <SectionHeader title="IV. ÖZGEÇMİŞ (PMH)" />
-                <SubHeader title="1. Prenatal (Doğum Öncesi)" />
-                <div className="flex flex-wrap -mx-1">
-                  <InputGroup label="Gebelik Sayısı/Sonuçları (Gravida, Para)" name="ped_gravidaPara" value={(formData.ped_gravidaPara as string) || ''} onChange={handleInputChange} width="w-full md:w-1/2" />
-                  <InputGroup label="Anne-Baba Kan Grubu" name="ped_kanGrubu" value={(formData.ped_kanGrubu as string) || ''} onChange={handleInputChange} width="w-full md:w-1/2" />
-                  <TextAreaGroup label="Hastalıklar ve İlaç Kullanımı" name="ped_gebelikHastalik" value={(formData.ped_gebelikHastalik as string) || ''} onChange={handleInputChange} />
-                  <TextAreaGroup label="Tarama Testleri (TORCH vb.)" name="ped_prenatalTarama" value={(formData.ped_prenatalTarama as string) || ''} onChange={handleInputChange} />
-                </div>
-
-                <SubHeader title="2. Natal (Doğum) Öyküsü" />
-                <div className="flex flex-wrap -mx-1">
-                  <InputGroup label="Gebelik Haftası" name="ped_gebelikHaftasi" value={(formData.ped_gebelikHaftasi as string) || ''} onChange={handleInputChange} width="w-full md:w-1/3" />
-                  <InputGroup label="Doğum Şekli/Endikasyonu" name="ped_dogumSekli" value={(formData.ped_dogumSekli as string) || ''} onChange={handleInputChange} width="w-full md:w-1/3" />
-                  <InputGroup label="APGAR Skorları/Resüsitasyon" name="ped_apgar" value={(formData.ped_apgar as string) || ''} onChange={handleInputChange} width="w-full md:w-1/3" />
-                </div>
-
-                <SubHeader title="3. Postnatal ve Yenidoğan Öyküsü" />
-                <div className="flex flex-wrap -mx-1">
-                  <InputGroup label="Doğum Ağırlığı, Boyu, Baş Çevresi" name="ped_dogumKiloBoy" value={(formData.ped_dogumKiloBoy as string) || ''} onChange={handleInputChange} width="w-full" />
-                  <InputGroup label="İlk İdrar/Mekonyum Zamanı" name="ped_mekonyum" value={(formData.ped_mekonyum as string) || ''} onChange={handleInputChange} width="w-full md:w-1/3" />
-                  <InputGroup label="Sarılık/NICU Yatışı" name="ped_sarilik" value={(formData.ped_sarilik as string) || ''} onChange={handleInputChange} width="w-full md:w-1/3" />
-                  <InputGroup label="Topuk Kanı/İşitme/KKH Tarama" name="ped_topukKani" value={(formData.ped_topukKani as string) || ''} onChange={handleInputChange} width="w-full md:w-1/3" />
-                </div>
-
-                <SubHeader title="4. Beslenme ve Diyet" />
-                <div className="flex flex-wrap -mx-1">
-                  <TextAreaGroup label="Anne Sütü (Süre, sıklık)" name="ped_anneSutu" value={(formData.ped_anneSutu as string) || ''} onChange={handleInputChange} />
-                  <TextAreaGroup label="Formül Mama" name="ped_formulMama" value={(formData.ped_formulMama as string) || ''} onChange={handleInputChange} />
-                  <TextAreaGroup label="Tamamlayıcı Beslenme (Ek gıda)" name="ped_ekGida" value={(formData.ped_ekGida as string) || ''} onChange={handleInputChange} />
-                </div>
-
-                <SubHeader title="5. Bağışıklama & 6. Alerjiler" />
-                <div className="flex flex-wrap -mx-1">
-                  <InputGroup label="Ulusal Aşı Uyumu" name="ped_asiUyum" value={(formData.ped_asiUyum as string) || ''} onChange={handleInputChange} width="w-full md:w-1/2" />
-                  <InputGroup label="Özel Aşılar (Rotavirüs vb.)" name="ped_ozelAsi" value={(formData.ped_ozelAsi as string) || ''} onChange={handleInputChange} width="w-full md:w-1/2" />
-                  <TextAreaGroup label="Geçirilmiş Hastalıklar/Cerrahi/Yatış" name="ped_gecirilmisHastalik" value={(formData.ped_gecirilmisHastalik as string) || ''} onChange={handleInputChange} />
-                  <TextAreaGroup label="Alerjiler (İlaç, Gıda, Çevre)" name="ped_alerji" value={(formData.ped_alerji as string) || ''} onChange={handleInputChange} />
-                </div>
-              </div>
-
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 print:shadow-none print:border-none print:p-0 print:break-inside-avoid">
-                <SectionHeader title="V. GELİŞİMSEL & VI. SOYGEÇMİŞ" />
-                <div className="flex flex-wrap -mx-1">
-                  <InputGroup label="Motor Gelişim" name="ped_motor" value={(formData.ped_motor as string) || ''} onChange={handleInputChange} width="w-full md:w-1/3" />
-                  <InputGroup label="Dil Gelişimi" name="ped_dil" value={(formData.ped_dil as string) || ''} onChange={handleInputChange} width="w-full md:w-1/3" />
-                  <InputGroup label="Bilişsel/Sosyal (M-CHAT vb.)" name="ped_bilissel" value={(formData.ped_bilissel as string) || ''} onChange={handleInputChange} width="w-full md:w-1/3" />
-                </div>
-                <div className="mt-4 flex flex-wrap -mx-1">
-                  <RadioGroup label="Akraba Evliliği" name="ped_akraba" value={(formData.ped_akraba as string) || ''} options={[{label:'Var', value:'Var'}, {label:'Yok', value:'Yok'}]} onChange={handleRadioChange} />
-                  <TextAreaGroup label="Ebeveyn/Kardeş Sağlık Durumu" name="ped_ebeveynSaglik" value={(formData.ped_ebeveynSaglik as string) || ''} onChange={handleInputChange} />
-                  <TextAreaGroup label="Ailedeki Kronik Hastalıklar" name="ped_aileKronik" value={(formData.ped_aileKronik as string) || ''} onChange={handleInputChange} />
-                  <InputGroup label="Bebek Ölümü/Düşük Öyküsü" name="ped_bebekOlum" value={(formData.ped_bebekOlum as string) || ''} onChange={handleInputChange} width="w-full" />
-                </div>
-              </div>
-
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 print:shadow-none print:border-none print:p-0 print:break-inside-avoid">
-                <SectionHeader title="VII. SOSYAL ÖYKÜ & VIII. ROS" />
-                <TextAreaGroup label="Sosyal Çevre (IHELLP / HEEADSSS)" name="ped_sosyalDurum" value={(formData.ped_sosyalDurum as string) || ''} onChange={handleInputChange} />
-                
-                <SubHeader title="Sistemlerin Gözden Geçirilmesi (ROS)" />
-                <div className="mt-3">
-                  <RosItem 
-                    label="Genel (Ateş, kilo kaybı, halsizlik vb.)" 
-                    radioName="ped_rosGenel" detailName="ped_rosGenel_detay" 
-                    radioValue={formData.ped_rosGenel as string} detailValue={formData.ped_rosGenel_detay as string} 
-                    onChangeRadio={handleRadioChange} onChangeDetail={handleInputChange} 
-                  />
-                  <RosItem 
-                    label="Deri (Döküntü, sarılık, kaşıntı, morarma vb.)" 
-                    radioName="ped_rosDeri" detailName="ped_rosDeri_detay" 
-                    radioValue={formData.ped_rosDeri as string} detailValue={formData.ped_rosDeri_detay as string} 
-                    onChangeRadio={handleRadioChange} onChangeDetail={handleInputChange} 
-                  />
-                  <RosItem 
-                    label="Baş-Boyun / HEENT (Baş ağrısı, görme/işitme vb.)" 
-                    radioName="ped_rosHEENT" detailName="ped_rosHEENT_detay" 
-                    radioValue={formData.ped_rosHEENT as string} detailValue={formData.ped_rosHEENT_detay as string} 
-                    onChangeRadio={handleRadioChange} onChangeDetail={handleInputChange} 
-                  />
-                  <RosItem 
-                    label="Solunum (Öksürük, hırıltı, stridor vb.)" 
-                    radioName="ped_rosSolunum" detailName="ped_rosSolunum_detay" 
-                    radioValue={formData.ped_rosSolunum as string} detailValue={formData.ped_rosSolunum_detay as string} 
-                    onChangeRadio={handleRadioChange} onChangeDetail={handleInputChange} 
-                  />
-                  <RosItem 
-                    label="Kardiyovasküler (Çarpıntı, nefes darlığı, morarma vb.)" 
-                    radioName="ped_rosKVS" detailName="ped_rosKVS_detay" 
-                    radioValue={formData.ped_rosKVS as string} detailValue={formData.ped_rosKVS_detay as string} 
-                    onChangeRadio={handleRadioChange} onChangeDetail={handleInputChange} 
-                  />
-                  <RosItem 
-                    label="Gastrointestinal (Bulantı, kusma, ishal vb.)" 
-                    radioName="ped_rosGI" detailName="ped_rosGI_detay" 
-                    radioValue={formData.ped_rosGI as string} detailValue={formData.ped_rosGI_detay as string} 
-                    onChangeRadio={handleRadioChange} onChangeDetail={handleInputChange} 
-                  />
-                  <RosItem 
-                    label="Genitoüriner (Sık idrar, disüri, hematüri vb.)" 
-                    radioName="ped_rosGU" detailName="ped_rosGU_detay" 
-                    radioValue={formData.ped_rosGU as string} detailValue={formData.ped_rosGU_detay as string} 
-                    onChangeRadio={handleRadioChange} onChangeDetail={handleInputChange} 
-                  />
-                  <RosItem 
-                    label="Kas-İskelet ve Nörolojik (Ağrı, nöbet, güçsüzlük vb.)" 
-                    radioName="ped_rosNorolojik" detailName="ped_rosNorolojik_detay" 
-                    radioValue={formData.ped_rosNorolojik as string} detailValue={formData.ped_rosNorolojik_detay as string} 
-                    onChangeRadio={handleRadioChange} onChangeDetail={handleInputChange} 
-                  />
-                </div>
-              </div>
-
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 print:shadow-none print:border-none print:p-0 print:break-inside-avoid">
-                <SectionHeader title="IX. FİZİK MUAYENE" />
-                {renderVitalBulgular()}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-4">
-                  <TextAreaGroup label="Cilt, Saç, Tırnak" name="ped_fmCilt" value={(formData.ped_fmCilt as string) || ''} onChange={handleInputChange} rows={2}/>
-                  <TextAreaGroup label="Baş ve Boyun (HEENT)" name="ped_fmHEENT" value={(formData.ped_fmHEENT as string) || ''} onChange={handleInputChange} rows={2}/>
-                  <TextAreaGroup label="Solunum Sistemi" name="ped_fmSolunum" value={(formData.ped_fmSolunum as string) || ''} onChange={handleInputChange} rows={2}/>
-                  <TextAreaGroup label="Kardiyovasküler Sistem" name="ped_fmKVS" value={(formData.ped_fmKVS as string) || ''} onChange={handleInputChange} rows={2}/>
-                  <TextAreaGroup label="Batın ve Genitalya" name="ped_fmBatin" value={(formData.ped_fmBatin as string) || ''} onChange={handleInputChange} rows={2}/>
-                  <TextAreaGroup label="Endokrin Gelişim (Tanner)" name="ped_fmEndokrin" value={(formData.ped_fmEndokrin as string) || ''} onChange={handleInputChange} rows={2}/>
-                  <TextAreaGroup label="Kas-İskelet Sistemi" name="ped_fmKasIskelet" value={(formData.ped_fmKasIskelet as string) || ''} onChange={handleInputChange} rows={2}/>
-                  <TextAreaGroup label="Nörolojik Muayene" name="ped_fmNoro" value={(formData.ped_fmNoro as string) || ''} onChange={handleInputChange} rows={2}/>
-                </div>
-              </div>
-
+      {/* MAIN CONTENT WRAPPER */}
+      <div className="flex-1 overflow-x-hidden flex flex-col relative w-full">
+        {/* INTERACTIVE UI (Hidden on Print) */}
+        <div className="print:hidden w-full max-w-6xl mx-auto flex-1 flex flex-col my-6 px-4 sm:px-6">
+          {/* HEADER ACTIONS */}
+          <div className="bg-white rounded-t-xl shadow-sm border border-b-0 border-slate-200 p-4 flex flex-col sm:flex-row justify-between items-center gap-4 z-10 sticky top-0">
+            <div className="flex bg-slate-100 p-1 rounded-lg w-full sm:w-auto">
+              <button
+                onClick={() => {
+                  setActiveTab("pediatri");
+                  setFormData((p) => ({ ...p, formType: "pediatri" }));
+                }}
+                className={`flex-1 sm:flex-none px-4 py-2 text-sm font-semibold rounded-md transition-all ${
+                  activeTab === "pediatri"
+                    ? "bg-white shadow-sm text-blue-700"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Genel Pediatri Formu
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab("romatoloji");
+                  setFormData((p) => ({ ...p, formType: "romatoloji" }));
+                }}
+                className={`flex-1 sm:flex-none px-4 py-2 text-sm font-semibold rounded-md transition-all ${
+                  activeTab === "romatoloji"
+                    ? "bg-white shadow-sm text-blue-700"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Romatoloji Formu
+              </button>
             </div>
-          )}
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button
+                onClick={handlePrintCurrent}
+                className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-sm font-semibold transition-colors border border-slate-200"
+              >
+                <Printer className="w-4 h-4" /> Yazdır
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-semibold transition-colors shadow-sm"
+              >
+                <Save className="w-4 h-4" /> Kaydet
+              </button>
+            </div>
+          </div>
 
-          {/* ========================================== */}
-          {/* TAB 2: ÇOCUK ROMATOLOJİ                    */}
-          {/* ========================================== */}
-          {activeTab === 'romatoloji' && (
-            <div className="space-y-6 animate-fadeIn">
-              
-              {renderVitalBulgular()}
+          {/* FORM AREA */}
+          <div className="bg-white p-6 sm:p-8 rounded-b-xl shadow-xl border border-slate-200">
+            {/* 1. ORTAK KİMLİK BİLGİLERİ */}
+            <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 mb-6">
+              <SectionHeader title="I. KİMLİK BİLGİLERİ VE DEMOGRAFİ" />
+              <div className="flex flex-wrap -mx-1">
+                <InputGroup
+                  label="Dosya / Hasta No"
+                  name="kimlik_dosyaNo"
+                  value={formData.kimlik_dosyaNo}
+                  onChange={handleInputChange}
+                  width="w-full md:w-1/3"
+                />
+                <InputGroup
+                  label="Hastanın Adı Soyadı"
+                  name="kimlik_adSoyad"
+                  value={formData.kimlik_adSoyad}
+                  onChange={handleInputChange}
+                  width="w-full md:w-1/3"
+                />
+                <InputGroup
+                  label="TC Kimlik No"
+                  name="kimlik_tc"
+                  value={formData.kimlik_tc}
+                  onChange={handleInputChange}
+                  width="w-full md:w-1/3"
+                />
 
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 print:shadow-none print:border-none print:p-0">
-                <SectionHeader title="I. TEMEL BİLGİLER VE BAŞVURU NEDENİ" />
-                <TextAreaGroup label="Ana Yakınma (Ailenin/Hastanın kelimeleriyle)" name="rom_anaYakinma" value={(formData.rom_anaYakinma as string) || ''} onChange={handleInputChange} />
-                <div className="flex flex-wrap mt-2 -mx-1">
-                  <InputGroup label="Şikayetlerin Toplam Süresi" name="rom_toplamSure" value={(formData.rom_toplamSure as string) || ''} onChange={handleInputChange} width="w-full md:w-1/2" />
-                  <div className="w-full md:w-1/2 p-1">
-                     <RadioGroup label="Akut mu, >6 hafta mı?" name="rom_akutMuKornikMi" value={(formData.rom_akutMuKornikMi as string) || ''} options={[{label:'Akut (<6 hafta)', value:'Akut'}, {label:'Kronik (>6 hafta)', value:'Kronik'}]} onChange={handleRadioChange} />
+                <InputGroup
+                  label="Başvuru/Görüşme Tarihi"
+                  name="kimlik_gorusmeTarihi"
+                  type="date"
+                  value={formData.kimlik_gorusmeTarihi}
+                  onChange={handleInputChange}
+                  width="w-full md:w-1/4"
+                />
+                <InputGroup
+                  label="Doğum Tarihi"
+                  name="kimlik_dogumTarihi"
+                  type="date"
+                  value={formData.kimlik_dogumTarihi}
+                  onChange={handleInputChange}
+                  width="w-full md:w-1/4"
+                />
+                <InputGroup
+                  label="Kesin Yaşı (Oto/Manuel)"
+                  name="kimlik_yas"
+                  value={formData.kimlik_yas}
+                  onChange={handleInputChange}
+                  width="w-full md:w-1/4"
+                />
+                <SelectGroup
+                  label="Cinsiyeti"
+                  name="kimlik_cinsiyet"
+                  value={formData.kimlik_cinsiyet}
+                  onChange={handleInputChange}
+                  options={["Kız", "Erkek"]}
+                  width="w-full md:w-1/4"
+                />
+
+                <InputGroup
+                  label="Bilgiyi Veren Kişi (Yakınlığı)"
+                  name="kimlik_informant"
+                  value={formData.kimlik_informant}
+                  onChange={handleInputChange}
+                  width="w-full md:w-1/2"
+                />
+                <InputGroup
+                  label="Bilginin Güvenilirliği (Bariyer vb.)"
+                  name="kimlik_guvenilirlik"
+                  value={formData.kimlik_guvenilirlik}
+                  onChange={handleInputChange}
+                  width="w-full md:w-1/2"
+                />
+                <InputGroup
+                  label="Doğum Yeri ve Güncel Adresi"
+                  name="kimlik_adres"
+                  value={formData.kimlik_adres}
+                  onChange={handleInputChange}
+                  width="w-full"
+                />
+              </div>
+            </div>
+
+            {/* TAB 1: PEDİATRİ */}
+            {activeTab === "pediatri" && (
+              <div className="space-y-8 animate-fadeIn">
+                <div className="p-4 border border-slate-100 rounded-xl bg-slate-50/30">
+                  <SectionHeader title="II. BAŞVURU NEDENİ & III. MEVCUT HASTALIK ÖYKÜSÜ" />
+                  <div className="flex flex-wrap -mx-1 mb-4">
+                    <TextAreaGroup
+                      label="Şikayet (Ana Yakınma)"
+                      name="ped_sikayet"
+                      value={formData.ped_sikayet}
+                      onChange={handleInputChange}
+                    />
+                    <InputGroup
+                      label="Şikayetin Süresi"
+                      name="ped_sure"
+                      value={formData.ped_sure}
+                      onChange={handleInputChange}
+                      width="w-full md:w-1/2"
+                    />
+                    <InputGroup
+                      label="En Son Tam Sağlıklı Hissedilen Zaman"
+                      name="ped_sonSaglikliZaman"
+                      value={formData.ped_sonSaglikliZaman}
+                      onChange={handleInputChange}
+                      width="w-full md:w-1/2"
+                    />
+                  </div>
+                  <SubHeader title="OLD CARTS Analizi" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <TextAreaGroup
+                      label="Başlangıç (Onset)"
+                      name="ped_onset"
+                      value={formData.ped_onset}
+                      onChange={handleInputChange}
+                      rows={1}
+                    />
+                    <TextAreaGroup
+                      label="Yerleşim/Yayılım (Location/Radiation)"
+                      name="ped_location"
+                      value={formData.ped_location}
+                      onChange={handleInputChange}
+                      rows={1}
+                    />
+                    <TextAreaGroup
+                      label="Süre (Duration)"
+                      name="ped_duration"
+                      value={formData.ped_duration}
+                      onChange={handleInputChange}
+                      rows={1}
+                    />
+                    <TextAreaGroup
+                      label="Karakter (Character)"
+                      name="ped_character"
+                      value={formData.ped_character}
+                      onChange={handleInputChange}
+                      rows={1}
+                    />
+                    <TextAreaGroup
+                      label="Artıran/Azaltan Faktörler"
+                      name="ped_aggravating"
+                      value={formData.ped_aggravating}
+                      onChange={handleInputChange}
+                      rows={1}
+                    />
+                    <TextAreaGroup
+                      label="İlişkili Semptomlar"
+                      name="ped_related"
+                      value={formData.ped_related}
+                      onChange={handleInputChange}
+                      rows={1}
+                    />
+                    <TextAreaGroup
+                      label="Zamanlama (Timing)"
+                      name="ped_timing"
+                      value={formData.ped_timing}
+                      onChange={handleInputChange}
+                      rows={1}
+                    />
+                    <TextAreaGroup
+                      label="Şiddet (Severity) / Uyku-Oyun"
+                      name="ped_severity"
+                      value={formData.ped_severity}
+                      onChange={handleInputChange}
+                      rows={1}
+                    />
+                  </div>
+                  <div className="mt-2 w-full sm:w-1/3">
+                    <InputGroup
+                      label="Ağrı Skoru (FACES/VAS)"
+                      name="ped_agriSkoru"
+                      value={formData.ped_agriSkoru}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 border border-slate-100 rounded-xl bg-slate-50/30">
+                  <SectionHeader title="IV. ÖZGEÇMİŞ (PMH)" />
+                  <SubHeader title="Prenatal & Natal (Doğum Öncesi ve Doğum)" />
+                  <div className="flex flex-wrap -mx-1">
+                    <InputGroup
+                      label="Gebelik Sayısı/Sonuçları (Gravida, Para)"
+                      name="ped_gravidaPara"
+                      value={formData.ped_gravidaPara}
+                      onChange={handleInputChange}
+                      width="w-full md:w-1/2"
+                    />
+                    <div className="w-full md:w-1/2 flex -mx-1">
+                      <SelectGroup
+                        label="Anne Kan Grubu"
+                        name="ped_anneKanGrubu"
+                        value={formData.ped_anneKanGrubu}
+                        onChange={handleInputChange}
+                        options={[
+                          "A+",
+                          "A-",
+                          "B+",
+                          "B-",
+                          "AB+",
+                          "AB-",
+                          "O+",
+                          "O-",
+                        ]}
+                        width="w-1/2"
+                      />
+                      <SelectGroup
+                        label="Baba Kan Grubu"
+                        name="ped_babaKanGrubu"
+                        value={formData.ped_babaKanGrubu}
+                        onChange={handleInputChange}
+                        options={[
+                          "A+",
+                          "A-",
+                          "B+",
+                          "B-",
+                          "AB+",
+                          "AB-",
+                          "O+",
+                          "O-",
+                        ]}
+                        width="w-1/2"
+                      />
+                    </div>
+                    <TextAreaGroup
+                      label="Hastalıklar ve İlaç Kullanımı"
+                      name="ped_gebelikHastalik"
+                      value={formData.ped_gebelikHastalik}
+                      onChange={handleInputChange}
+                      rows={1}
+                    />
+                    <TextAreaGroup
+                      label="Tarama Testleri (TORCH vb.)"
+                      name="ped_prenatalTarama"
+                      value={formData.ped_prenatalTarama}
+                      onChange={handleInputChange}
+                      rows={1}
+                    />
+
+                    <InputGroup
+                      label="Gebelik Haftası"
+                      name="ped_gebelikHaftasi"
+                      value={formData.ped_gebelikHaftasi}
+                      onChange={handleInputChange}
+                      width="w-full md:w-1/3"
+                    />
+                    <InputGroup
+                      label="Doğum Şekli/Endikasyonu"
+                      name="ped_dogumSekli"
+                      value={formData.ped_dogumSekli}
+                      onChange={handleInputChange}
+                      width="w-full md:w-1/3"
+                    />
+                    <div className="w-full md:w-1/3 flex -mx-1">
+                      <InputGroup
+                        label="APGAR"
+                        name="ped_apgar"
+                        value={formData.ped_apgar}
+                        onChange={handleInputChange}
+                        width="w-1/2"
+                      />
+                      <InputGroup
+                        label="Resüsitasyon"
+                        name="ped_resusitasyon"
+                        value={formData.ped_resusitasyon}
+                        onChange={handleInputChange}
+                        width="w-1/2"
+                      />
+                    </div>
+                  </div>
+
+                  <SubHeader title="Postnatal, Beslenme ve Bağışıklama" />
+                  <div className="flex flex-wrap -mx-1">
+                    <InputGroup
+                      label="Doğum Ağırlığı/Boyu/Baş Çevresi"
+                      name="ped_dogumKiloBoy"
+                      value={formData.ped_dogumKiloBoy}
+                      onChange={handleInputChange}
+                      width="w-full"
+                    />
+                    <InputGroup
+                      label="İlk İdrar/Mekonyum Zamanı"
+                      name="ped_mekonyum"
+                      value={formData.ped_mekonyum}
+                      onChange={handleInputChange}
+                      width="w-full md:w-1/3"
+                    />
+                    <InputGroup
+                      label="Sarılık/NICU Yatışı"
+                      name="ped_sarilik"
+                      value={formData.ped_sarilik}
+                      onChange={handleInputChange}
+                      width="w-full md:w-1/3"
+                    />
+                    <InputGroup
+                      label="Topuk Kanı/İşitme/KKH Tarama"
+                      name="ped_topukKani"
+                      value={formData.ped_topukKani}
+                      onChange={handleInputChange}
+                      width="w-full md:w-1/3"
+                    />
+
+                    <TextAreaGroup
+                      label="Anne Sütü"
+                      name="ped_anneSutu"
+                      value={formData.ped_anneSutu}
+                      onChange={handleInputChange}
+                      rows={1}
+                    />
+                    <TextAreaGroup
+                      label="Formül Mama & Ek Gıda"
+                      name="ped_ekGida"
+                      value={formData.ped_ekGida}
+                      onChange={handleInputChange}
+                      rows={1}
+                    />
+
+                    <InputGroup
+                      label="Ulusal Aşı Uyumu"
+                      name="ped_asiUyum"
+                      value={formData.ped_asiUyum}
+                      onChange={handleInputChange}
+                      width="w-full md:w-1/2"
+                    />
+                    <InputGroup
+                      label="Özel Aşılar"
+                      name="ped_ozelAsi"
+                      value={formData.ped_ozelAsi}
+                      onChange={handleInputChange}
+                      width="w-full md:w-1/2"
+                    />
+                    <TextAreaGroup
+                      label="Geçirilmiş Hastalıklar/Cerrahi"
+                      name="ped_gecirilmisHastalik"
+                      value={formData.ped_gecirilmisHastalik}
+                      onChange={handleInputChange}
+                      rows={1}
+                    />
+                    <TextAreaGroup
+                      label="Alerjiler (İlaç, Gıda, Çevre)"
+                      name="ped_alerji"
+                      value={formData.ped_alerji}
+                      onChange={handleInputChange}
+                      rows={1}
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 border border-slate-100 rounded-xl bg-slate-50/30">
+                  <SectionHeader title="V. GELİŞİMSEL & VI. SOYGEÇMİŞ" />
+                  <div className="flex flex-wrap -mx-1 mb-4">
+                    <InputGroup
+                      label="Motor Gelişim"
+                      name="ped_motor"
+                      value={formData.ped_motor}
+                      onChange={handleInputChange}
+                      width="w-full md:w-1/3"
+                    />
+                    <InputGroup
+                      label="Dil Gelişimi"
+                      name="ped_dil"
+                      value={formData.ped_dil}
+                      onChange={handleInputChange}
+                      width="w-full md:w-1/3"
+                    />
+                    <InputGroup
+                      label="Bilişsel/Sosyal (M-CHAT)"
+                      name="ped_bilissel"
+                      value={formData.ped_bilissel}
+                      onChange={handleInputChange}
+                      width="w-full md:w-1/3"
+                    />
+                  </div>
+                  <YesNoDetail
+                    label="Akraba Evliliği var mı?"
+                    radioName="ped_akraba"
+                    detailName="ped_akraba_detay"
+                    radioValue={formData.ped_akraba}
+                    detailValue={formData.ped_akraba_detay}
+                    onChangeRadio={handleRadioChange}
+                    onChangeDetail={handleInputChange}
+                  />
+                  <TextAreaGroup
+                    label="Ebeveyn/Kardeş Sağlık Durumu"
+                    name="ped_ebeveynSaglik"
+                    value={formData.ped_ebeveynSaglik}
+                    onChange={handleInputChange}
+                  />
+                  <TextAreaGroup
+                    label="Ailedeki Kronik Hastalıklar"
+                    name="ped_aileKronik"
+                    value={formData.ped_aileKronik}
+                    onChange={handleInputChange}
+                  />
+                  <InputGroup
+                    label="Bebek Ölümü/Düşük Öyküsü"
+                    name="ped_bebekOlum"
+                    value={formData.ped_bebekOlum}
+                    onChange={handleInputChange}
+                    width="w-full"
+                  />
+                </div>
+
+                <div className="p-4 border border-slate-100 rounded-xl bg-slate-50/30">
+                  <SectionHeader title="VII. SOSYAL ÖYKÜ & VIII. ROS" />
+                  <TextAreaGroup
+                    label="Sosyal Çevre (IHELLP / HEEADSSS)"
+                    name="ped_sosyalDurum"
+                    value={formData.ped_sosyalDurum}
+                    onChange={handleInputChange}
+                  />
+                  <SubHeader title="Sistemlerin Gözden Geçirilmesi (ROS)" />
+                  <div className="mt-3 space-y-1">
+                    <YesNoDetail
+                      label="Genel (Ateş, kilo kaybı, halsizlik vb.)"
+                      radioName="ped_rosGenel"
+                      detailName="ped_rosGenel_detay"
+                      radioValue={formData.ped_rosGenel}
+                      detailValue={formData.ped_rosGenel_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Deri (Döküntü, sarılık, kaşıntı, morarma vb.)"
+                      radioName="ped_rosDeri"
+                      detailName="ped_rosDeri_detay"
+                      radioValue={formData.ped_rosDeri}
+                      detailValue={formData.ped_rosDeri_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Baş-Boyun / HEENT (Baş ağrısı, görme/işitme vb.)"
+                      radioName="ped_rosHEENT"
+                      detailName="ped_rosHEENT_detay"
+                      radioValue={formData.ped_rosHEENT}
+                      detailValue={formData.ped_rosHEENT_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Solunum (Öksürük, hırıltı, stridor vb.)"
+                      radioName="ped_rosSolunum"
+                      detailName="ped_rosSolunum_detay"
+                      radioValue={formData.ped_rosSolunum}
+                      detailValue={formData.ped_rosSolunum_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Kardiyovasküler (Çarpıntı, nefes darlığı, morarma vb.)"
+                      radioName="ped_rosKVS"
+                      detailName="ped_rosKVS_detay"
+                      radioValue={formData.ped_rosKVS}
+                      detailValue={formData.ped_rosKVS_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Gastrointestinal (Bulantı, kusma, ishal vb.)"
+                      radioName="ped_rosGI"
+                      detailName="ped_rosGI_detay"
+                      radioValue={formData.ped_rosGI}
+                      detailValue={formData.ped_rosGI_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Genitoüriner (Sık idrar, disüri, hematüri vb.)"
+                      radioName="ped_rosGU"
+                      detailName="ped_rosGU_detay"
+                      radioValue={formData.ped_rosGU}
+                      detailValue={formData.ped_rosGU_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Kas-İskelet ve Nörolojik (Ağrı, nöbet, güçsüzlük vb.)"
+                      radioName="ped_rosNorolojik"
+                      detailName="ped_rosNorolojik_detay"
+                      radioValue={formData.ped_rosNorolojik}
+                      detailValue={formData.ped_rosNorolojik_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 border border-slate-100 rounded-xl bg-slate-50/30">
+                  <SectionHeader title="IX. FİZİK MUAYENE" />
+                  <SubHeader title="Vital Bulgular ve Antropometri" />
+                  <div className="flex flex-wrap -mx-1 mb-4">
+                    <SelectGroup
+                      label="Genel Durum"
+                      name="vital_genelDurum"
+                      value={formData.vital_genelDurum}
+                      onChange={handleInputChange}
+                      options={["İyi", "Orta", "Toksik"]}
+                      width="w-full md:w-1/3"
+                    />
+                    <div className="w-full flex flex-wrap mt-2">
+                      <InputGroup
+                        label="Ateş (°C)"
+                        name="vital_ates"
+                        value={formData.vital_ates}
+                        onChange={handleInputChange}
+                        width="w-1/2 sm:w-1/4"
+                      />
+                      <InputGroup
+                        label="Nabız (/dk)"
+                        name="vital_nabiz"
+                        value={formData.vital_nabiz}
+                        onChange={handleInputChange}
+                        width="w-1/2 sm:w-1/4"
+                      />
+                      <InputGroup
+                        label="Tansiyon (mmHg)"
+                        name="vital_tansiyon"
+                        value={formData.vital_tansiyon}
+                        onChange={handleInputChange}
+                        width="w-1/2 sm:w-1/4"
+                      />
+                      <InputGroup
+                        label="Solunum (/dk)"
+                        name="vital_solunum"
+                        value={formData.vital_solunum}
+                        onChange={handleInputChange}
+                        width="w-1/2 sm:w-1/4"
+                      />
+                      <InputGroup
+                        label="Ağırlık (kg/Z)"
+                        name="vital_kilo"
+                        value={formData.vital_kilo}
+                        onChange={handleInputChange}
+                        width="w-1/3"
+                      />
+                      <InputGroup
+                        label="Boy (cm/Z)"
+                        name="vital_boy"
+                        value={formData.vital_boy}
+                        onChange={handleInputChange}
+                        width="w-1/3"
+                      />
+                      <InputGroup
+                        label="Baş Çevresi (cm)"
+                        name="vital_basCevresi"
+                        value={formData.vital_basCevresi}
+                        onChange={handleInputChange}
+                        width="w-1/3"
+                      />
+                    </div>
+                  </div>
+                  <SubHeader title="Sistemik Muayene" />
+                  <div className="space-y-1">
+                    <YesNoDetail
+                      isExam
+                      label="Cilt, Saç, Tırnak"
+                      radioName="ped_fmCilt"
+                      detailName="ped_fmCilt_detay"
+                      radioValue={formData.ped_fmCilt}
+                      detailValue={formData.ped_fmCilt_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      isExam
+                      label="Baş ve Boyun (HEENT)"
+                      radioName="ped_fmHEENT"
+                      detailName="ped_fmHEENT_detay"
+                      radioValue={formData.ped_fmHEENT}
+                      detailValue={formData.ped_fmHEENT_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      isExam
+                      label="Solunum Sistemi"
+                      radioName="ped_fmSolunum"
+                      detailName="ped_fmSolunum_detay"
+                      radioValue={formData.ped_fmSolunum}
+                      detailValue={formData.ped_fmSolunum_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      isExam
+                      label="Kardiyovasküler Sistem"
+                      radioName="ped_fmKVS"
+                      detailName="ped_fmKVS_detay"
+                      radioValue={formData.ped_fmKVS}
+                      detailValue={formData.ped_fmKVS_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      isExam
+                      label="Batın ve Genitalya"
+                      radioName="ped_fmBatin"
+                      detailName="ped_fmBatin_detay"
+                      radioValue={formData.ped_fmBatin}
+                      detailValue={formData.ped_fmBatin_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      isExam
+                      label="Endokrin Gelişim (Tanner)"
+                      radioName="ped_fmEndokrin"
+                      detailName="ped_fmEndokrin_detay"
+                      radioValue={formData.ped_fmEndokrin}
+                      detailValue={formData.ped_fmEndokrin_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      isExam
+                      label="Kas-İskelet Sistemi"
+                      radioName="ped_fmKasIskelet"
+                      detailName="ped_fmKasIskelet_detay"
+                      radioValue={formData.ped_fmKasIskelet}
+                      detailValue={formData.ped_fmKasIskelet_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      isExam
+                      label="Nörolojik Muayene"
+                      radioName="ped_fmNoro"
+                      detailName="ped_fmNoro_detay"
+                      radioValue={formData.ped_fmNoro}
+                      detailValue={formData.ped_fmNoro_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
                   </div>
                 </div>
               </div>
+            )}
 
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 print:shadow-none print:border-none print:p-0 print:break-inside-avoid">
-                <SectionHeader title="II. EKLEM AĞRISI VE KAS-İSKELET ŞİKAYETLERİNİN DETAYLANDIRILMASI" />
-                
-                <SubHeader title="Ağrının Başlangıcı ve Yaş Kriterleri" />
-                <RadioGroup 
-                  label="Şikayetler aniden mi yoksa sinsi sinsi mi başladı?" 
-                  name="rom_baslangic" 
-                  value={(formData.rom_baslangic as string) || ''}
-                  options={[{label:'Aniden (Travma/Septik şüphesi)', value:'Aniden'}, {label:'Sinsi Sinsi (>6hf JIA şüphesi)', value:'Sinsi'}]} 
-                  onChange={handleRadioChange}
-                />
-                <RadioGroup 
-                  label="(<5 yaş ise) Bel ağrısı şikayeti var mı? (Kırmızı Bayrak)" 
-                  name="rom_belAgrisi" 
-                  value={(formData.rom_belAgrisi as string) || ''}
-                  options={[{label:'Var', value:'Var'}, {label:'Yok', value:'Yok'}, {label:'Uygulanamaz (>5 yaş)', value:'NA'}]} 
-                  onChange={handleRadioChange}
-                />
+            {/* TAB 2: ROMATOLOJİ */}
+            {activeTab === "romatoloji" && (
+              <div className="space-y-8 animate-fadeIn">
+                <div className="p-4 border border-slate-100 rounded-xl bg-slate-50/30">
+                  <SectionHeader title="I. BAŞVURU NEDENİ & VİTAL BULGULAR" />
+                  <TextAreaGroup
+                    label="Ana Yakınma (Ailenin/Hastanın kelimeleriyle)"
+                    name="rom_anaYakinma"
+                    value={formData.rom_anaYakinma}
+                    onChange={handleInputChange}
+                  />
+                  <div className="flex flex-wrap mt-2 -mx-1">
+                    <InputGroup
+                      label="Şikayetlerin Toplam Süresi"
+                      name="rom_toplamSure"
+                      value={formData.rom_toplamSure}
+                      onChange={handleInputChange}
+                      width="w-full md:w-1/2"
+                    />
+                    <RadioGroup
+                      label="Akut mu, >6 hafta mı?"
+                      name="rom_akutMuKornikMi"
+                      value={formData.rom_akutMuKornikMi}
+                      options={[
+                        { label: "Akut (<6hf)", value: "Akut" },
+                        { label: "Kronik (>6hf)", value: "Kronik" },
+                      ]}
+                      onChange={handleRadioChange}
+                    />
+                  </div>
 
-                <SubHeader title="İnflamatuar vs. Mekanik Ağrı Ayrımı" />
-                <div className="space-y-3">
-                  <RadioGroup 
-                    label="Karakteristik Tip Şüphesi:" 
-                    name="rom_inflamatuarMekanik" 
-                    value={(formData.rom_inflamatuarMekanik as string) || ''}
-                    options={[{label:'İnflamatuar', value:'İnflamatuar'}, {label:'Mekanik', value:'Mekanik'}, {label:'İdiyopatik (Büyüme)', value:'Idiyopatik'}]} 
+                  <SubHeader title="Vital Bulgular" />
+                  <div className="w-full flex flex-wrap mt-2 -mx-1">
+                    <InputGroup
+                      label="Ateş (°C)"
+                      name="vital_ates"
+                      value={formData.vital_ates}
+                      onChange={handleInputChange}
+                      width="w-1/2 sm:w-1/4"
+                    />
+                    <InputGroup
+                      label="Nabız (/dk)"
+                      name="vital_nabiz"
+                      value={formData.vital_nabiz}
+                      onChange={handleInputChange}
+                      width="w-1/2 sm:w-1/4"
+                    />
+                    <InputGroup
+                      label="Tansiyon (mmHg)"
+                      name="vital_tansiyon"
+                      value={formData.vital_tansiyon}
+                      onChange={handleInputChange}
+                      width="w-1/2 sm:w-1/4"
+                    />
+                    <InputGroup
+                      label="Kilo (kg)"
+                      name="vital_kilo"
+                      value={formData.vital_kilo}
+                      onChange={handleInputChange}
+                      width="w-1/2 sm:w-1/4"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 border border-slate-100 rounded-xl bg-slate-50/30">
+                  <SectionHeader title="II. EKLEM AĞRISI VE KAS-İSKELET ŞİKAYETLERİNİN DETAYLANDIRILMASI" />
+                  <RadioGroup
+                    label="Başlangıç:"
+                    name="rom_baslangic"
+                    value={formData.rom_baslangic}
+                    options={[
+                      { label: "Aniden (Travma/Septik)", value: "Aniden" },
+                      { label: "Sinsi Sinsi (>6hf JIA)", value: "Sinsi" },
+                    ]}
                     onChange={handleRadioChange}
                   />
-                  
-                  <div className="p-3 bg-red-50 border border-red-100 rounded print:bg-transparent print:border-none print:p-0">
-                    <p className="text-xs font-bold text-red-800 mb-2 print:text-black">İnflamatuar Şüphe Kriterleri:</p>
-                    <RadioGroup label="Sabahları uyanıldığında mı en şiddetli?" name="rom_sabahTutuklugu" value={(formData.rom_sabahTutuklugu as string) || ''} options={[{label:'Evet', value:'Evet'}, {label:'Hayır', value:'Hayır'}]} onChange={handleRadioChange} />
-                    <InputGroup label="Sabah tutukluğu süresi (dk)" name="rom_sabahTutukluguSuresi" type="number" value={(formData.rom_sabahTutukluguSuresi as string) || ''} onChange={handleInputChange} width="w-1/3" />
-                    <RadioGroup label="Kullanım/Efor ile hafifliyor mu?" name="rom_agriHafifleme" value={(formData.rom_agriHafifleme as string) || ''} options={[{label:'Evet', value:'Evet'}, {label:'Hayır', value:'Hayır'}]} onChange={handleRadioChange} />
+                  <RadioGroup
+                    label="(<5 yaş ise) Bel ağrısı şikayeti var mı?"
+                    name="rom_belAgrisi"
+                    value={formData.rom_belAgrisi}
+                    options={[
+                      { label: "Var", value: "Var" },
+                      { label: "Yok", value: "Yok" },
+                      { label: "Uygulanamaz", value: "NA" },
+                    ]}
+                    onChange={handleRadioChange}
+                  />
+
+                  <SubHeader title="İnflamatuar vs. Mekanik Ağrı Ayrımı" />
+                  <RadioGroup
+                    label="Karakteristik Tip Şüphesi:"
+                    name="rom_inflamatuarMekanik"
+                    value={formData.rom_inflamatuarMekanik}
+                    options={[
+                      { label: "İnflamatuar", value: "İnflamatuar" },
+                      { label: "Mekanik", value: "Mekanik" },
+                      { label: "İdiyopatik", value: "Idiyopatik" },
+                    ]}
+                    onChange={handleRadioChange}
+                  />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                    <div className="p-3 bg-red-50 border border-red-100 rounded">
+                      <p className="text-xs font-bold text-red-800 mb-2">
+                        İnflamatuar:
+                      </p>
+                      <RadioGroup
+                        label="Sabahları şiddetli mi?"
+                        name="rom_sabahTutuklugu"
+                        value={formData.rom_sabahTutuklugu}
+                        options={[
+                          { label: "Evet", value: "Evet" },
+                          { label: "Hayır", value: "Hayır" },
+                        ]}
+                        onChange={handleRadioChange}
+                      />
+                      <InputGroup
+                        label="Sabah tutukluğu (dk)"
+                        name="rom_sabahTutukluguSuresi"
+                        type="number"
+                        value={formData.rom_sabahTutukluguSuresi}
+                        onChange={handleInputChange}
+                      />
+                      <RadioGroup
+                        label="Efor ile hafifliyor mu?"
+                        name="rom_agriHafifleme"
+                        value={formData.rom_agriHafifleme}
+                        options={[
+                          { label: "Evet", value: "Evet" },
+                          { label: "Hayır", value: "Hayır" },
+                        ]}
+                        onChange={handleRadioChange}
+                      />
+                    </div>
+                    <div className="p-3 bg-blue-50 border border-blue-100 rounded">
+                      <p className="text-xs font-bold text-blue-800 mb-2">
+                        Mekanik:
+                      </p>
+                      <RadioGroup
+                        label="Eforla kötüleşip, istirahatle düzeliyor mu?"
+                        name="rom_mekanikSiddetlenme"
+                        value={formData.rom_mekanikSiddetlenme}
+                        options={[
+                          { label: "Evet", value: "Evet" },
+                          { label: "Hayır", value: "Hayır" },
+                        ]}
+                        onChange={handleRadioChange}
+                      />
+                    </div>
+                    <div className="p-3 bg-green-50 border border-green-100 rounded">
+                      <p className="text-xs font-bold text-green-800 mb-2">
+                        İdiyopatik:
+                      </p>
+                      <RadioGroup
+                        label="Akşam/gece çıkıp masajla hafifliyor mu?"
+                        name="rom_idiyopatikGece"
+                        value={formData.rom_idiyopatikGece}
+                        options={[
+                          { label: "Evet", value: "Evet" },
+                          { label: "Hayır", value: "Hayır" },
+                        ]}
+                        onChange={handleRadioChange}
+                      />
+                    </div>
                   </div>
 
-                  <div className="p-3 bg-blue-50 border border-blue-100 rounded print:bg-transparent print:border-none print:p-0">
-                    <p className="text-xs font-bold text-blue-800 mb-2 print:text-black">Mekanik Şüphe Kriterleri:</p>
-                    <RadioGroup label="Eforla kötüleşip, istirahatle düzeliyor mu?" name="rom_mekanikSiddetlenme" value={(formData.rom_mekanikSiddetlenme as string) || ''} options={[{label:'Evet', value:'Evet'}, {label:'Hayır', value:'Hayır'}]} onChange={handleRadioChange} />
+                  <SubHeader title="Tutulum Paterni & Kırmızı Bayraklar" />
+                  <div className="flex flex-wrap -mx-1 items-center mb-4">
+                    <SelectGroup
+                      label="Kaç eklem etkilenmiş?"
+                      name="rom_eklemSayisi"
+                      value={formData.rom_eklemSayisi}
+                      onChange={handleInputChange}
+                      options={[
+                        "Monoartrit (1)",
+                        "Oligoartrit (1-4)",
+                        "Poliartrit (≥5)",
+                      ]}
+                      width="w-full md:w-1/3"
+                    />
+                    <div className="w-full md:w-1/3">
+                      <RadioGroup
+                        label="Simetrik mi?"
+                        name="rom_simetrikMi"
+                        value={formData.rom_simetrikMi}
+                        options={[
+                          { label: "Simetrik", value: "Simetrik" },
+                          { label: "Asimetrik", value: "Asimetrik" },
+                        ]}
+                        onChange={handleRadioChange}
+                      />
+                    </div>
+                    <div className="w-full md:w-1/3">
+                      <RadioGroup
+                        label="Gezici (migratuvar) mi?"
+                        name="rom_migratuvarMi"
+                        value={formData.rom_migratuvarMi}
+                        options={[
+                          { label: "Evet", value: "Evet" },
+                          { label: "Hayır", value: "Hayır" },
+                        ]}
+                        onChange={handleRadioChange}
+                      />
+                    </div>
                   </div>
+                  <RadioGroup
+                    label="Gece uykudan uyandıran ve istirahatle geçmeyen ağrı var mı?"
+                    name="rom_geceUykudanUyandiran"
+                    value={formData.rom_geceUykudanUyandiran}
+                    options={[
+                      { label: "Var", value: "Var" },
+                      { label: "Yok", value: "Yok" },
+                    ]}
+                    onChange={handleRadioChange}
+                  />
+                  <TextAreaGroup
+                    label="Semptom öncesi 2-4 hf enfeksiyon (boğaz ağrısı, kene vb.) öyküsü?"
+                    name="rom_tetikleyiciEnfeksiyon"
+                    value={formData.rom_tetikleyiciEnfeksiyon}
+                    onChange={handleInputChange}
+                    rows={1}
+                  />
+                </div>
 
-                  <div className="p-3 bg-green-50 border border-green-100 rounded print:bg-transparent print:border-none print:p-0">
-                    <p className="text-xs font-bold text-green-800 mb-2 print:text-black">İdiyopatik Şüphe Kriterleri:</p>
-                    <RadioGroup label="Eklemde şişlik yok, akşam/gece ortaya çıkıp masajla hafifliyor mu?" name="rom_idiyopatikGece" value={(formData.rom_idiyopatikGece as string) || ''} options={[{label:'Evet', value:'Evet'}, {label:'Hayır', value:'Hayır'}]} onChange={handleRadioChange} />
+                <div className="p-4 border border-slate-100 rounded-xl bg-slate-50/30">
+                  <SectionHeader title="III. EKSTRA-ARTİKÜLER VE SİSTEMİK BULGULAR" />
+                  <InputGroup
+                    label="Ateş paterni (dalgalı, periyodik vb.)"
+                    name="rom_atesPaterni"
+                    value={formData.rom_atesPaterni}
+                    onChange={handleInputChange}
+                    width="w-full md:w-1/2"
+                  />
+                  <div className="mt-3 space-y-1">
+                    <YesNoDetail
+                      label="Açıklanamayan kilo kaybı var mı?"
+                      radioName="rom_kiloKaybi"
+                      detailName="rom_kiloKaybi_detay"
+                      radioValue={formData.rom_kiloKaybi}
+                      detailValue={formData.rom_kiloKaybi_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Yüz döküntüsü, oral aft, saç dökülmesi? (SLE)"
+                      radioName="rom_ciltSLE"
+                      detailName="rom_ciltSLE_detay"
+                      radioValue={formData.rom_ciltSLE}
+                      detailValue={formData.rom_ciltSLE_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Gluteal/Bacak ekstansör purpurik döküntü? (HSP)"
+                      radioName="rom_ciltHSP"
+                      detailName="rom_ciltHSP_detay"
+                      radioValue={formData.rom_ciltHSP}
+                      detailValue={formData.rom_ciltHSP_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Tırnakta çukurcuk veya psoriatik plak?"
+                      radioName="rom_ciltPsoriatik"
+                      detailName="rom_ciltPsoriatik_detay"
+                      radioValue={formData.rom_ciltPsoriatik}
+                      detailValue={formData.rom_ciltPsoriatik_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Mide/Bağırsak: Karın ağrısı, ishal, kanlı dışkı?"
+                      radioName="rom_giSemptom"
+                      detailName="rom_giSemptom_detay"
+                      radioValue={formData.rom_giSemptom}
+                      detailValue={formData.rom_giSemptom_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Göz: Kızarıklık, fotofobi, bulanık görme?"
+                      radioName="rom_gozSemptom"
+                      detailName="rom_gozSemptom_detay"
+                      radioValue={formData.rom_gozSemptom}
+                      detailValue={formData.rom_gozSemptom_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Üriner: Hematüri veya köpüklenme?"
+                      radioName="rom_guSemptom"
+                      detailName="rom_guSemptom_detay"
+                      radioValue={formData.rom_guSemptom}
+                      detailValue={formData.rom_guSemptom_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
                   </div>
                 </div>
 
-                <SubHeader title="Tutulum Paterni ve Yayılım" />
-                <div className="flex flex-wrap -mx-1 items-center">
-                  <div className="w-full md:w-1/3 p-1">
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Kaç eklem etkilenmiş?</label>
-                    <select name="rom_eklemSayisi" value={(formData.rom_eklemSayisi as string) || ''} onChange={handleInputChange} className="w-full border border-slate-300 rounded p-2 text-sm print:appearance-none print:border-b print:border-0 print:rounded-none">
-                      <option value="">Seçiniz...</option>
-                      <option value="Monoartrit (1)">Monoartrit (1)</option>
-                      <option value="Oligoartrit (1-4)">Oligoartrit (1-4)</option>
-                      <option value="Poliartrit (≥5)">Poliartrit (≥5)</option>
-                    </select>
-                  </div>
-                  <div className="w-full md:w-1/3">
-                    <RadioGroup label="Simetrik mi?" name="rom_simetrikMi" value={(formData.rom_simetrikMi as string) || ''} options={[{label:'Simetrik', value:'Simetrik'}, {label:'Asimetrik', value:'Asimetrik'}]} onChange={handleRadioChange} />
-                  </div>
-                  <div className="w-full md:w-1/3">
-                    <RadioGroup label="Gezici (migratuvar) mi?" name="rom_migratuvarMi" value={(formData.rom_migratuvarMi as string) || ''} options={[{label:'Evet', value:'Evet'}, {label:'Hayır', value:'Hayır'}]} onChange={handleRadioChange} />
+                <div className="p-4 border border-slate-100 rounded-xl bg-slate-50/30">
+                  <SectionHeader title="IV. ROMATOLOJİ ODAKLI ÖZGEÇMİŞ VE SOYGEÇMİŞ" />
+                  <TextAreaGroup
+                    label="Kullanılan immünsüpresif / antibiyotikler:"
+                    name="rom_ilacKullanimi"
+                    value={formData.rom_ilacKullanimi}
+                    onChange={handleInputChange}
+                    rows={1}
+                  />
+                  <div className="mt-3 space-y-1">
+                    <YesNoDetail
+                      label="Kronik enfeksiyon öyküsü var mı?"
+                      radioName="rom_kronikEnfeksiyon"
+                      detailName="rom_kronikEnfeksiyon_detay"
+                      radioValue={formData.rom_kronikEnfeksiyon}
+                      detailValue={formData.rom_kronikEnfeksiyon_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Ailede Romatizma, SLE, İBH, Sedef?"
+                      radioName="rom_aileRomatizma"
+                      detailName="rom_aileRomatizma_detay"
+                      radioValue={formData.rom_aileRomatizma}
+                      detailValue={formData.rom_aileRomatizma_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Ailede erken yaşta diyaliz öyküsü?"
+                      radioName="rom_aileDiyaliz"
+                      detailName="rom_aileDiyaliz_detay"
+                      radioValue={formData.rom_aileDiyaliz}
+                      detailValue={formData.rom_aileDiyaliz_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      label="Ailede periyodik ateş (FMF vb.)?"
+                      radioName="rom_aileFMF"
+                      detailName="rom_aileFMF_detay"
+                      radioValue={formData.rom_aileFMF}
+                      detailValue={formData.rom_aileFMF_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
                   </div>
                 </div>
 
-                <SubHeader title="Kırmızı Bayrak & Tetikleyiciler" />
-                <RadioGroup label="Gece uykudan uyandıran ve istirahatle geçmeyen ağrı var mı? (Malignite/Enfeksiyon)" name="rom_geceUykudanUyandiran" value={(formData.rom_geceUykudanUyandiran as string) || ''} options={[{label:'Var', value:'Var'}, {label:'Yok', value:'Yok'}]} onChange={handleRadioChange} />
-                <TextAreaGroup label="Semptom öncesi 2-4 hf enfeksiyon (boğaz ağrısı, ishal, dizüri, kene) öyküsü?" name="rom_tetikleyiciEnfeksiyon" value={(formData.rom_tetikleyiciEnfeksiyon as string) || ''} onChange={handleInputChange} />
+                <div className="p-4 border border-slate-100 rounded-xl bg-slate-50/30">
+                  <SectionHeader title="V. KAS-İSKELET SİSTEMİ VE SİSTEMİK FİZİK MUAYENE" />
+                  <div className="space-y-1">
+                    <YesNoDetail
+                      isExam
+                      label="İnspeksiyon (Look) Anormallik? (Postür, atrofi, şişlik)"
+                      radioName="rom_fmLook"
+                      detailName="rom_fmLook_detay"
+                      radioValue={formData.rom_fmLook}
+                      detailValue={formData.rom_fmLook_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      isExam
+                      label="Palpasyon (Feel) Anormallik? (Isı artışı, hassasiyet, Efüzyon)"
+                      radioName="rom_fmFeel"
+                      detailName="rom_fmFeel_detay"
+                      radioValue={formData.rom_fmFeel}
+                      detailValue={formData.rom_fmFeel_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      isExam
+                      label="Hareket (Move) ROM Kısıtlılığı / Ağrı?"
+                      radioName="rom_fmMove"
+                      detailName="rom_fmMove_detay"
+                      radioValue={formData.rom_fmMove}
+                      detailValue={formData.rom_fmMove_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                    <YesNoDetail
+                      isExam
+                      label="Sistemik Muayene Anormalliği? (LAP, Üfürüm vb.)"
+                      radioName="rom_fmSistemik"
+                      detailName="rom_fmSistemik_detay"
+                      radioValue={formData.rom_fmSistemik}
+                      detailValue={formData.rom_fmSistemik_detay}
+                      onChangeRadio={handleRadioChange}
+                      onChangeDetail={handleInputChange}
+                    />
+                  </div>
+                </div>
               </div>
+            )}
+          </div>
+        </div>
 
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 print:shadow-none print:border-none print:p-0 print:break-inside-avoid">
-                <SectionHeader title="III. EKSTRA-ARTİKÜLER VE SİSTEMİK BULGULAR" />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <InputGroup label="Ateş paterni (dalgalı, sürekli, periyodik)" name="rom_atesPaterni" value={(formData.rom_atesPaterni as string) || ''} onChange={handleInputChange} />
-                    <RadioGroup label="Açıklanamayan kilo kaybı var mı?" name="rom_kiloKaybi" value={(formData.rom_kiloKaybi as string) || ''} options={[{label:'Var', value:'Var'}, {label:'Yok', value:'Yok'}]} onChange={handleRadioChange} />
-                    <TextAreaGroup label="Mide/Bağırsak: Karın ağrısı, ishal, kanlı dışkılama?" name="rom_giSemptom" value={(formData.rom_giSemptom as string) || ''} onChange={handleInputChange} rows={2}/>
-                  </div>
-                  <div>
-                    <RadioGroup label="Yüz döküntüsü, oral aft, saç dökülmesi? (SLE)" name="rom_ciltSLE" value={(formData.rom_ciltSLE as string) || ''} options={[{label:'Var', value:'Var'}, {label:'Yok', value:'Yok'}]} onChange={handleRadioChange} />
-                    <RadioGroup label="Gluteal/Bacak ekstansör purpurik döküntü? (HSP)" name="rom_ciltHSP" value={(formData.rom_ciltHSP as string) || ''} options={[{label:'Var', value:'Var'}, {label:'Yok', value:'Yok'}]} onChange={handleRadioChange} />
-                    <RadioGroup label="Tırnakta çukurcuk (pitting) veya psoriatik plak?" name="rom_ciltPsoriatik" value={(formData.rom_ciltPsoriatik as string) || ''} options={[{label:'Var', value:'Var'}, {label:'Yok', value:'Yok'}]} onChange={handleRadioChange} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                  <TextAreaGroup label="Göz: Kızarıklık, fotofobi, bulanık görme?" name="rom_gozSemptom" value={(formData.rom_gozSemptom as string) || ''} onChange={handleInputChange} rows={2}/>
-                  <TextAreaGroup label="Üriner: Hematüri veya proteinüri(köpüklenme)?" name="rom_guSemptom" value={(formData.rom_guSemptom as string) || ''} onChange={handleInputChange} rows={2}/>
-                </div>
-              </div>
+        {/* --- PRINT TEMPLATE (Only visible during window.print) --- */}
+        <div className="hidden print:block w-full max-w-none text-black p-4 text-[11px] leading-snug">
+          <div className="text-center mb-6 pb-2 border-b-2 border-black">
+            <h1 className="text-xl font-bold uppercase tracking-widest">
+              ÇOCUK KLİNİĞİ BÜTÜNLEŞİK ANAMNEZ VE MUAYENE RAPORU
+            </h1>
+            <p className="text-sm">
+              Rapor Tarihi: {new Date().toLocaleString("tr-TR")}
+            </p>
+          </div>
 
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 print:shadow-none print:border-none print:p-0 print:break-inside-avoid">
-                <SectionHeader title="IV. ROMATOLOJİ ODAKLI ÖZGEÇMİŞ VE SOYGEÇMİŞ" />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <RadioGroup label="Kronik enfeksiyon öyküsü var mı?" name="rom_kronikEnfeksiyon" value={(formData.rom_kronikEnfeksiyon as string) || ''} options={[{label:'Var', value:'Var'}, {label:'Yok', value:'Yok'}]} onChange={handleRadioChange} />
-                    <TextAreaGroup label="Kullanılan immünsüpresif / antibiyotikler:" name="rom_ilacKullanimi" value={(formData.rom_ilacKullanimi as string) || ''} onChange={handleInputChange} rows={2}/>
-                  </div>
-                  <div>
-                    <RadioGroup label="Ailede Romatizma, SLE, İBH, Sedef?" name="rom_aileRomatizma" value={(formData.rom_aileRomatizma as string) || ''} options={[{label:'Var', value:'Var'}, {label:'Yok', value:'Yok'}]} onChange={handleRadioChange} />
-                    <RadioGroup label="Ailede erken yaşta diyaliz öyküsü?" name="rom_aileDiyaliz" value={(formData.rom_aileDiyaliz as string) || ''} options={[{label:'Var', value:'Var'}, {label:'Yok', value:'Yok'}]} onChange={handleRadioChange} />
-                    <RadioGroup label="Ailede periyodik ateş (FMF vb.)?" name="rom_aileFMF" value={(formData.rom_aileFMF as string) || ''} options={[{label:'Var', value:'Var'}, {label:'Yok', value:'Yok'}]} onChange={handleRadioChange} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 print:shadow-none print:border-none print:p-0 print:break-inside-avoid">
-                <SectionHeader title="V. KAS-İSKELET SİSTEMİ VE SİSTEMİK FİZİK MUAYENE" />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <SubHeader title="İnspeksiyon (Look)" />
-                    <TextAreaGroup label="Postür ve yürüyüş (topallama?)" name="rom_posturTopallama" value={(formData.rom_posturTopallama as string) || ''} onChange={handleInputChange} rows={2}/>
-                    <TextAreaGroup label="Kas atrofisi, eklem şişliği/şekil bozukluğu?" name="rom_kasAtrofisiSislik" value={(formData.rom_kasAtrofisiSislik as string) || ''} onChange={handleInputChange} rows={2}/>
-                  </div>
-                  <div>
-                    <SubHeader title="Palpasyon (Feel)" />
-                    <TextAreaGroup label="Isı artışı veya hassasiyet?" name="rom_isiArtisiHassasiyet" value={(formData.rom_isiArtisiHassasiyet as string) || ''} onChange={handleInputChange} rows={2}/>
-                    <RadioGroup label="Efüzyon (Bulge/Patellar tap) pozitif mi?" name="rom_efuzyonBulgusu" value={(formData.rom_efuzyonBulgusu as string) || ''} options={[{label:'Pozitif', value:'Pozitif'}, {label:'Negatif', value:'Negatif'}]} onChange={handleRadioChange} />
-                  </div>
-                </div>
-                
-                <div className="mt-4">
-                  <SubHeader title="Hareket (Move)" />
-                  <TextAreaGroup label="Aktif/Pasif ROM ölçümleri ve eşlik eden ağrı belgelenmesi:" name="rom_romOlcusu" value={(formData.rom_romOlcusu as string) || ''} onChange={handleInputChange} rows={3}/>
-                </div>
-
-                <div className="mt-4">
-                  <SubHeader title="Sistemik Muayene Kontrolü" />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <RadioGroup label="Lenfadenopati (LAP), Hepatosplenomegali?" name="rom_organomegaliLAP" value={(formData.rom_organomegaliLAP as string) || ''} options={[{label:'Mevcut', value:'Mevcut'}, {label:'Yok', value:'Yok'}]} onChange={handleRadioChange} />
-                    <RadioGroup label="Kardiyak muayenede üfürüm duyuldu mu?" name="rom_kardiyakUfurum" value={(formData.rom_kardiyakUfurum as string) || ''} options={[{label:'Evet', value:'Evet'}, {label:'Hayır', value:'Hayır'}]} onChange={handleRadioChange} />
-                  </div>
-                </div>
-              </div>
-
+          <div className="mb-4">
+            <h2 className="font-bold text-sm bg-gray-200 p-1 mb-2">
+              I. KİMLİK BİLGİLERİ VE DEMOGRAFİ
+            </h2>
+            <div className="grid grid-cols-4 gap-2 border-b border-gray-300 pb-2">
+              <p>
+                <strong>Dosya No:</strong> {val("kimlik_dosyaNo")}
+              </p>
+              <p>
+                <strong>Hasta Adı:</strong> {val("kimlik_adSoyad")}
+              </p>
+              <p>
+                <strong>TC No:</strong> {val("kimlik_tc")}
+              </p>
+              <p>
+                <strong>Cinsiyet:</strong> {val("kimlik_cinsiyet")}
+              </p>
+              <p>
+                <strong>Doğum T.:</strong> {val("kimlik_dogumTarihi")}
+              </p>
+              <p>
+                <strong>Yaşı:</strong> {val("kimlik_yas")}
+              </p>
+              <p>
+                <strong>Görüşme T.:</strong> {val("kimlik_gorusmeTarihi")}
+              </p>
+              <p>
+                <strong>İnformant:</strong> {val("kimlik_informant")}
+              </p>
             </div>
-          )}
+            <p className="mt-1">
+              <strong>Adres/Yer:</strong> {val("kimlik_adres")} |{" "}
+              <strong>Güvenilirlik:</strong> {val("kimlik_guvenilirlik")}
+            </p>
+          </div>
 
+          <div className="mb-4">
+            <h2 className="font-bold text-sm bg-gray-200 p-1 mb-2">
+              VİTAL BULGULAR
+            </h2>
+            <div className="grid grid-cols-5 gap-2">
+              <p>
+                <strong>Durum:</strong> {val("vital_genelDurum")}
+              </p>
+              <p>
+                <strong>Ateş:</strong> {val("vital_ates")}
+              </p>
+              <p>
+                <strong>Nabız:</strong> {val("vital_nabiz")}
+              </p>
+              <p>
+                <strong>Tansiyon:</strong> {val("vital_tansiyon")}
+              </p>
+              <p>
+                <strong>Solunum:</strong> {val("vital_solunum")}
+              </p>
+              <p>
+                <strong>Kilo:</strong> {val("vital_kilo")}
+              </p>
+              <p>
+                <strong>Boy:</strong> {val("vital_boy")}
+              </p>
+              <p>
+                <strong>Baş Çev.:</strong> {val("vital_basCevresi")}
+              </p>
+            </div>
+          </div>
+
+          {/* PRINT PEDİATRİ SECTION */}
+          <div className="mb-4 border-t-2 border-black pt-2">
+            <h2 className="font-bold text-base mb-2">
+              GENEL PEDİATRİ VERİLERİ
+            </h2>
+            <p>
+              <strong>Ana Şikayet:</strong> {val("ped_sikayet")}{" "}
+              <strong>Süre:</strong> {val("ped_sure")}{" "}
+              <strong>Son Sağlıklı Zaman:</strong> {val("ped_sonSaglikliZaman")}
+            </p>
+            <p>
+              <strong>HPI (OLD CARTS):</strong> Başlangıç: {val("ped_onset")} |
+              Yerleşim: {val("ped_location")} | Süre: {val("ped_duration")} |
+              Karakter: {val("ped_character")} | Artıran/Azaltan:{" "}
+              {val("ped_aggravating")} | İlişkili: {val("ped_related")} | Zaman:{" "}
+              {val("ped_timing")} | Şiddet: {val("ped_severity")} | Ağrı Skoru:{" "}
+              {val("ped_agriSkoru")}
+            </p>
+
+            <h3 className="font-bold mt-2">Özgeçmiş (PMH)</h3>
+            <p>
+              <strong>Prenatal:</strong> Gravida/Para: {val("ped_gravidaPara")}{" "}
+              | Anne KG: {val("ped_anneKanGrubu")} Baba KG:{" "}
+              {val("ped_babaKanGrubu")} | Hst/İlaç: {val("ped_gebelikHastalik")}{" "}
+              | Tarama: {val("ped_prenatalTarama")}
+            </p>
+            <p>
+              <strong>Natal:</strong> {val("ped_gebelikHaftasi")} hf, Şekli:{" "}
+              {val("ped_dogumSekli")}, Apgar: {val("ped_apgar")}, Resus:{" "}
+              {val("ped_resusitasyon")}
+            </p>
+            <p>
+              <strong>Postnatal:</strong> Kilo/Boy: {val("ped_dogumKiloBoy")} |
+              Mekonyum: {val("ped_mekonyum")} | Sarılık/NICU:{" "}
+              {val("ped_sarilik")} | Taramalar: {val("ped_topukKani")}
+            </p>
+            <p>
+              <strong>Beslenme/Aşı:</strong> AS: {val("ped_anneSutu")} | Mama:{" "}
+              {val("ped_formulMama")} | EkGıda: {val("ped_ekGida")} | Ulusal
+              Aşı: {val("ped_asiUyum")} | Özel Aşı: {val("ped_ozelAsi")}
+            </p>
+            <p>
+              <strong>Hastalık/Alerji:</strong> Geçirilmiş:{" "}
+              {val("ped_gecirilmisHastalik")} | Alerji: {val("ped_alerji")}
+            </p>
+
+            <h3 className="font-bold mt-2">Gelişim, Soygeçmiş & Sosyal</h3>
+            <p>
+              <strong>Gelişim:</strong> Motor: {val("ped_motor")} | Dil:{" "}
+              {val("ped_dil")} | Bilişsel: {val("ped_bilissel")}
+            </p>
+            <p>
+              <strong>Soygeçmiş:</strong> Akraba:{" "}
+              {ynVal("ped_akraba", "ped_akraba_detay")} | Ebeveyn Sğl:{" "}
+              {val("ped_ebeveynSaglik")} | Kronik: {val("ped_aileKronik")} |
+              BebekÖlm/Düşük: {val("ped_bebekOlum")}
+            </p>
+            <p>
+              <strong>Sosyal (IHELLP):</strong> {val("ped_sosyalDurum")}
+            </p>
+
+            <h3 className="font-bold mt-2 border-b border-gray-300">
+              Sistemlerin Gözden Geçirilmesi (ROS)
+            </h3>
+            <div className="grid grid-cols-2 gap-x-4">
+              <p>
+                <strong>Genel:</strong>{" "}
+                {ynVal("ped_rosGenel", "ped_rosGenel_detay")}
+              </p>
+              <p>
+                <strong>Deri:</strong>{" "}
+                {ynVal("ped_rosDeri", "ped_rosDeri_detay")}
+              </p>
+              <p>
+                <strong>HEENT:</strong>{" "}
+                {ynVal("ped_rosHEENT", "ped_rosHEENT_detay")}
+              </p>
+              <p>
+                <strong>Solunum:</strong>{" "}
+                {ynVal("ped_rosSolunum", "ped_rosSolunum_detay")}
+              </p>
+              <p>
+                <strong>KVS:</strong> {ynVal("ped_rosKVS", "ped_rosKVS_detay")}
+              </p>
+              <p>
+                <strong>GİS:</strong> {ynVal("ped_rosGI", "ped_rosGI_detay")}
+              </p>
+              <p>
+                <strong>GÜS:</strong> {ynVal("ped_rosGU", "ped_rosGU_detay")}
+              </p>
+              <p>
+                <strong>Nörolojik:</strong>{" "}
+                {ynVal("ped_rosNorolojik", "ped_rosNorolojik_detay")}
+              </p>
+            </div>
+
+            <h3 className="font-bold mt-2 border-b border-gray-300">
+              Sistemik Fizik Muayene
+            </h3>
+            <div className="grid grid-cols-2 gap-x-4">
+              <p>
+                <strong>Cilt/Saç:</strong>{" "}
+                {fmVal("ped_fmCilt", "ped_fmCilt_detay")}
+              </p>
+              <p>
+                <strong>HEENT:</strong>{" "}
+                {fmVal("ped_fmHEENT", "ped_fmHEENT_detay")}
+              </p>
+              <p>
+                <strong>Solunum:</strong>{" "}
+                {fmVal("ped_fmSolunum", "ped_fmSolunum_detay")}
+              </p>
+              <p>
+                <strong>KVS:</strong> {fmVal("ped_fmKVS", "ped_fmKVS_detay")}
+              </p>
+              <p>
+                <strong>Batın/Genital:</strong>{" "}
+                {fmVal("ped_fmBatin", "ped_fmBatin_detay")}
+              </p>
+              <p>
+                <strong>Endokrin:</strong>{" "}
+                {fmVal("ped_fmEndokrin", "ped_fmEndokrin_detay")}
+              </p>
+              <p>
+                <strong>Kas-İskelet:</strong>{" "}
+                {fmVal("ped_fmKasIskelet", "ped_fmKasIskelet_detay")}
+              </p>
+              <p>
+                <strong>Nörolojik:</strong>{" "}
+                {fmVal("ped_fmNoro", "ped_fmNoro_detay")}
+              </p>
+            </div>
+          </div>
+
+          {/* PRINT ROMATOLOJİ SECTION */}
+          <div className="mb-4 border-t-2 border-black pt-2">
+            <h2 className="font-bold text-base mb-2">
+              ÇOCUK ROMATOLOJİ VERİLERİ
+            </h2>
+            <p>
+              <strong>Yakınma:</strong> {val("rom_anaYakinma")} |{" "}
+              <strong>Süre/Tip:</strong> {val("rom_toplamSure")} (
+              {val("rom_akutMuKornikMi")}) | <strong>Başlangıç:</strong>{" "}
+              {val("rom_baslangic")} | <strong>Bel Ağrısı:</strong>{" "}
+              {val("rom_belAgrisi")}
+            </p>
+            <p>
+              <strong>Ağrı Karakteri:</strong> {val("rom_inflamatuarMekanik")} |
+              Sabah Tut.: {val("rom_sabahTutuklugu")} (
+              {val("rom_sabahTutukluguSuresi")}dk) | Eforla Hafifleme:{" "}
+              {val("rom_agriHafifleme")} | Eforla Şiddetlenme:{" "}
+              {val("rom_mekanikSiddetlenme")} | Gece İdiyopatik:{" "}
+              {val("rom_idiyopatikGece")}
+            </p>
+            <p>
+              <strong>Patern:</strong> {val("rom_eklemSayisi")} | Simetri:{" "}
+              {val("rom_simetrikMi")} | Migratuvar: {val("rom_migratuvarMi")} |
+              Gece Uyandıran: {val("rom_geceUykudanUyandiran")} | Tetikleyici
+              Enf.: {val("rom_tetikleyiciEnfeksiyon")}
+            </p>
+
+            <h3 className="font-bold mt-2 border-b border-gray-300">
+              Ekstra-Artiküler ve Sistemik (Romatoloji)
+            </h3>
+            <div className="grid grid-cols-2 gap-x-4">
+              <p>
+                <strong>Ateş Paterni:</strong> {val("rom_atesPaterni")}
+              </p>
+              <p>
+                <strong>Kilo Kaybı:</strong>{" "}
+                {ynVal("rom_kiloKaybi", "rom_kiloKaybi_detay")}
+              </p>
+              <p>
+                <strong>Cilt (SLE):</strong>{" "}
+                {ynVal("rom_ciltSLE", "rom_ciltSLE_detay")}
+              </p>
+              <p>
+                <strong>Cilt (HSP):</strong>{" "}
+                {ynVal("rom_ciltHSP", "rom_ciltHSP_detay")}
+              </p>
+              <p>
+                <strong>Cilt (Psoriatik):</strong>{" "}
+                {ynVal("rom_ciltPsoriatik", "rom_ciltPsoriatik_detay")}
+              </p>
+              <p>
+                <strong>GİS:</strong>{" "}
+                {ynVal("rom_giSemptom", "rom_giSemptom_detay")}
+              </p>
+              <p>
+                <strong>Göz:</strong>{" "}
+                {ynVal("rom_gozSemptom", "rom_gozSemptom_detay")}
+              </p>
+              <p>
+                <strong>GÜS:</strong>{" "}
+                {ynVal("rom_guSemptom", "rom_guSemptom_detay")}
+              </p>
+            </div>
+
+            <h3 className="font-bold mt-2 border-b border-gray-300">
+              Özgeçmiş / Soygeçmiş (Romatoloji)
+            </h3>
+            <div className="grid grid-cols-2 gap-x-4">
+              <p>
+                <strong>İlaçlar:</strong> {val("rom_ilacKullanimi")}
+              </p>
+              <p>
+                <strong>Kr. Enfeksiyon:</strong>{" "}
+                {ynVal("rom_kronikEnfeksiyon", "rom_kronikEnfeksiyon_detay")}
+              </p>
+              <p>
+                <strong>Aile (Romatizma vb):</strong>{" "}
+                {ynVal("rom_aileRomatizma", "rom_aileRomatizma_detay")}
+              </p>
+              <p>
+                <strong>Aile (Diyaliz):</strong>{" "}
+                {ynVal("rom_aileDiyaliz", "rom_aileDiyaliz_detay")}
+              </p>
+              <p className="col-span-2">
+                <strong>Aile (FMF/Periyodik):</strong>{" "}
+                {ynVal("rom_aileFMF", "rom_aileFMF_detay")}
+              </p>
+            </div>
+
+            <h3 className="font-bold mt-2 border-b border-gray-300">
+              Romatolojik Fizik Muayene
+            </h3>
+            <div className="grid grid-cols-1 gap-y-1">
+              <p>
+                <strong>İnspeksiyon (Look):</strong>{" "}
+                {fmVal("rom_fmLook", "rom_fmLook_detay")}
+              </p>
+              <p>
+                <strong>Palpasyon (Feel):</strong>{" "}
+                {fmVal("rom_fmFeel", "rom_fmFeel_detay")}
+              </p>
+              <p>
+                <strong>Hareket (Move):</strong>{" "}
+                {fmVal("rom_fmMove", "rom_fmMove_detay")}
+              </p>
+              <p>
+                <strong>Sistemik:</strong>{" "}
+                {fmVal("rom_fmSistemik", "rom_fmSistemik_detay")}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
