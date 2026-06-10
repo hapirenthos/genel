@@ -601,7 +601,7 @@ export default function HastaAnamnezMiniApp() {
   };
 
   // --- TASARIMI YENİLENMİŞ (HACETTEPE GÖRÜNÜMÜ) PDF DIŞA AKTARIMI ---
-  const exportPDF = () => {
+  const exportPDF = async () => {
     if (!formData.patientId) {
       alert(
         "Öncelikle dışa aktarmak istediğiniz hastayı sol menüden seçin veya kaydedin."
@@ -610,6 +610,14 @@ export default function HastaAnamnezMiniApp() {
     }
 
     const doc = new jsPDF() as jsPDFWithAutoTable;
+
+    const logo = new Image();
+    logo.src = "/hacettepe-logo.jpeg";
+
+    await new Promise<void>((resolve, reject) => {
+      logo.onload = () => resolve();
+      logo.onerror = () => reject(new Error("Logo yüklenemedi"));
+    });
 
     let filesToExport = exportRange.includeAll
       ? savedFiles.filter((f) => {
@@ -661,12 +669,14 @@ export default function HastaAnamnezMiniApp() {
       // --- Custom Page Template Hook ---
       const headerAndFooter = (data: any) => {
         // Logo (Kırmızı kutu içi beyaz 'h' harfi tasarımı)
-        doc.setFillColor(180, 20, 30);
-        doc.roundedRect(14, 10, 11, 15, 2, 2, "F");
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(16);
-        doc.setFont("helvetica", "bold");
-        doc.text("h", 17, 21.5);
+        doc.addImage(
+          logo,
+          "JPEG",
+          14, // x
+          9, // y
+          12, // width
+          12 // height
+        );
 
         // Header Text
         doc.setTextColor(50, 50, 50);
