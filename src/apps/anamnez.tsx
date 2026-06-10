@@ -673,7 +673,7 @@ export default function HastaAnamnezMiniApp() {
           logo,
           "PNG",
           14, // x
-          7, // y
+          5, // y
           12, // width
           17 // height
         );
