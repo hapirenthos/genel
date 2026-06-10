@@ -60,7 +60,7 @@ const calculateAge = (dob: string, targetDate: string) => {
   return `${days} gün`;
 };
 
-// PDF için Türkçe karakter düzeltici
+// PDF için Türkçe karakter düzeltici (Standart font desteği için)
 const normalizeText = (text: string | null | undefined) => {
   if (!text) return "";
   return String(text)
@@ -235,7 +235,6 @@ const initialFormData: FormData = {
   rom_fmSistemik_detay: "",
 };
 
-// Formda hangi kısımların doldurulduğunu kontrol eden akıllı fonksiyonlar
 const checkHasPed = (f: any) =>
   Object.keys(initialFormData).some(
     (k) =>
@@ -256,7 +255,7 @@ const checkHasRom = (f: any) =>
 const getFormTypeLabel = (f: FormData) => {
   const hasPed = checkHasPed(f);
   const hasRom = checkHasRom(f);
-  if (hasPed && hasRom) return "Genel + Romatoloji";
+  if (hasPed && hasRom) return "Genel Pediatri + Romatoloji";
   if (hasRom) return "Çocuk Romatoloji";
   if (hasPed) return "Genel Pediatri";
   return f.formType === "romatoloji" ? "Çocuk Romatoloji" : "Genel Pediatri";
@@ -479,7 +478,7 @@ const RosItem = ({
   </div>
 );
 
-// --- MAIN APPLICATION ---
+// --- MAIN APPLICATION COMPONENT (Renamed back to original for your skeleton app) ---
 export default function HastaAnamnezMiniApp() {
   const [activeTab, setActiveTab] = useState<"pediatri" | "romatoloji">(
     "pediatri"
@@ -560,7 +559,7 @@ export default function HastaAnamnezMiniApp() {
       id: formData.id || Date.now().toString(),
       patientId: pId,
       lastModified: now,
-      formType: activeTab, // Sadece son aktif kalınan tab olarak tutuyoruz, asıl form tipi dinamik hesaplanıyor
+      formType: activeTab,
     };
 
     if (formData.id) {
@@ -586,10 +585,8 @@ export default function HastaAnamnezMiniApp() {
     )
       return;
     setFormData(file);
-    // Yüklenen dosyada hangi sekme daha doluysa onu aktif et
     if (checkHasRom(file) && !checkHasPed(file)) setActiveTab("romatoloji");
     else setActiveTab("pediatri");
-
     if (window.innerWidth < 1024) setSidebarOpen(false);
   };
 
@@ -603,7 +600,7 @@ export default function HastaAnamnezMiniApp() {
     }
   };
 
-  // --- GELİŞMİŞ VE PROFESYONEL PDF DIŞA AKTARMA (Sadece İlgili Hastanın Seçili Tarihleri) ---
+  // --- TASARIMI YENİLENMİŞ (HACETTEPE GÖRÜNÜMÜ) PDF DIŞA AKTARIMI ---
   const exportPDF = () => {
     if (!formData.patientId) {
       alert(
@@ -614,10 +611,9 @@ export default function HastaAnamnezMiniApp() {
 
     const doc = new jsPDF() as jsPDFWithAutoTable;
 
-    // Hastanın sadece kendi dosyalarını ve (varsa) tarih aralığını filtrele
     let filesToExport = exportRange.includeAll
       ? savedFiles.filter((f) => {
-          if (f.patientId !== formData.patientId) return false; // SADECE BU HASTA
+          if (f.patientId !== formData.patientId) return false;
           if (!exportRange.start || !exportRange.end) return true;
           const date = new Date(f.kimlik_gorusmeTarihi);
           return (
@@ -632,7 +628,6 @@ export default function HastaAnamnezMiniApp() {
       return;
     }
 
-    // Tarihe göre eskiden yeniye sırala
     filesToExport.sort(
       (a, b) =>
         new Date(a.kimlik_gorusmeTarihi).getTime() -
@@ -641,7 +636,6 @@ export default function HastaAnamnezMiniApp() {
 
     filesToExport.forEach((f, index) => {
       if (index > 0) doc.addPage();
-      let currentY = 20;
 
       const hasPed =
         checkHasPed(f) ||
@@ -650,300 +644,319 @@ export default function HastaAnamnezMiniApp() {
         checkHasRom(f) ||
         (!checkHasPed(f) && !checkHasRom(f) && f.formType === "romatoloji");
 
-      doc.setFontSize(16);
-      doc.setTextColor(30, 58, 138);
-      doc.text(
-        normalizeText("KLINIK ANAMNEZ VE MUAYENE RAPORU"),
-        105,
-        currentY,
-        { align: "center" }
-      );
-      currentY += 8;
-
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      doc.text(
-        normalizeText(
-          `Dosya Icerigi: ${getFormTypeLabel(f)}  |  Gorusme: ${
-            f.kimlik_gorusmeTarihi
-          }`
-        ),
-        105,
-        currentY,
-        { align: "center" }
-      );
-      currentY += 12;
-
-      // PDF Değer Çekici Fonksiyonlar
-      const val = (k: string) => normalizeText(f[k] ? String(f[k]) : "-");
+      const val = (k: string) => normalizeText(f[k] ? String(f[k]) : "");
       const ynVal = (r: string, d: string) => {
-        if (!f[r]) return "-";
+        if (!f[r]) return "";
         if (f[r] === "Hayır") return "Hayir";
         return normalizeText(`Evet${f[d] ? ` (${f[d]})` : ""}`);
       };
       const fmVal = (r: string, d: string) => {
-        if (!f[r]) return "Degerlendirilmemis";
-        if (f[r] === "Hayır") return "Dogal ya da ozelliksiz";
-        return normalizeText(f[d] ? String(f[d]) : "Detay belirtilmemis");
+        if (!f[r]) return "";
+        if (f[r] === "Hayır") return "Dogal/Ozelliksiz";
+        return normalizeText(
+          f[d] ? String(f[d]) : "Anormal (Ayrinti belirtilmemis)"
+        );
       };
 
-      const drawSection = (title: string, data: string[][]) => {
-        doc.autoTable({
-          startY: currentY,
-          head: [
-            [
-              {
-                content: normalizeText(title),
-                colSpan: 2,
-                styles: {
-                  halign: "left",
-                  fillColor: [79, 70, 229],
-                  textColor: 255,
-                },
-              },
-            ],
-          ],
-          body: data,
-          theme: "grid",
-          headStyles: { fontStyle: "bold", fontSize: 10 },
-          bodyStyles: { fontSize: 9, cellPadding: 2, textColor: [30, 41, 59] },
-          columnStyles: {
-            0: { fontStyle: "bold", cellWidth: 70, fillColor: [248, 250, 252] },
+      // --- Custom Page Template Hook ---
+      const headerAndFooter = (data: any) => {
+        // Logo (Kırmızı kutu içi beyaz 'h' harfi tasarımı)
+        doc.setFillColor(180, 20, 30);
+        doc.roundedRect(14, 10, 11, 15, 2, 2, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(16);
+        doc.setFont("helvetica", "bold");
+        doc.text("h", 17, 21.5);
+
+        // Header Text
+        doc.setTextColor(50, 50, 50);
+        doc.setFontSize(9);
+        doc.text(normalizeText("HACETTEPE UNIVERSITESI HASTANELERI"), 28, 15);
+
+        // Subtitle Text
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
+        const nameStr = val("kimlik_adSoyad").toUpperCase();
+        const docNoStr = val("kimlik_dosyaNo") || "-";
+        doc.text(
+          normalizeText(`Dosya No : ${docNoStr} Hasta Adi Soyadi : ${nameStr}`),
+          28,
+          22
+        );
+
+        // Kalın Açık Mavi Çizgi
+        doc.setDrawColor(190, 220, 255);
+        doc.setLineWidth(3);
+        doc.line(14, 25, 196, 25);
+
+        // Footer (Sayfa Altı Bilgileri)
+        const dateObj = f.kimlik_gorusmeTarihi
+          ? new Date(f.kimlik_gorusmeTarihi)
+          : new Date();
+        const options: Intl.DateTimeFormatOptions = {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          weekday: "long",
+        };
+        // Türkçe karakterleri normalize ediyoruz
+        const dateStr = normalizeText(
+          dateObj.toLocaleDateString("tr-TR", options)
+        );
+
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
+        doc.text(dateStr, 14, 285);
+
+        // Ortaya Sayfa Numarası
+        doc.text(`${data.pageNumber}`, 105, 285, { align: "center" });
+      };
+
+      // --- İçerik Bloklarını Oluşturma ---
+      const rows: any[] = [];
+
+      // İlk Satır (Sol kolon saat ve hoca, sağ kolon ana başlık)
+      const mockTimeStr = "00:00\nKlinik Arsiv"; // Resimdeki yerleşime uydurmak için
+      const formTypeStr = normalizeText(getFormTypeLabel(f));
+
+      rows.push([
+        { content: mockTimeStr, styles: { fontStyle: "bold", fontSize: 9 } },
+        {
+          content: `${formTypeStr}\nMuayene`,
+          styles: { fontStyle: "bold", fontSize: 10 },
+        },
+      ]);
+
+      const addBlock = (
+        title: string,
+        lines: (string | null | undefined)[]
+      ) => {
+        const validLines = lines.filter(Boolean);
+        if (validLines.length === 0) return;
+
+        // Başlıklar uppercase ile kalın hissi verilir
+        const contentStr = `${title}:\n${validLines.join("\n")}`;
+        rows.push([
+          "", // Sol kolon boş
+          {
+            content: contentStr,
+            styles: {
+              fontSize: 9,
+              cellPadding: { top: 2, bottom: 2, left: 1, right: 1 },
+            },
           },
-          margin: { left: 14, right: 14 },
-        });
-        currentY = doc.lastAutoTable.finalY + 6;
+        ]);
       };
 
-      // 1. KİMLİK & 2. VİTAL (HER ZAMAN)
-      drawSection("1. KIMLIK BILGILERI VE DEMOGRAFI", [
-        [
-          "Dosya No / TC Kimlik No",
-          `${val("kimlik_dosyaNo")} / ${val("kimlik_tc")}`,
-        ],
-        ["Hasta Adi Soyadi", val("kimlik_adSoyad")],
-        [
-          "Dogum Tarihi / Yasi",
-          `${val("kimlik_dogumTarihi")} / ${val("kimlik_yas")}`,
-        ],
-        ["Cinsiyeti", val("kimlik_cinsiyet")],
-        [
-          "Informant / Guvenilirlik",
-          `${val("kimlik_informant")} / ${val("kimlik_guvenilirlik")}`,
-        ],
-        ["Guncel Adres", val("kimlik_adres")],
-      ]);
-
-      drawSection("2. VITAL BULGULAR VE ANTROPOMETRI", [
-        ["Genel Durum", val("vital_genelDurum")],
-        [
-          "Ates / Nabiz / Tansiyon",
-          `${val("vital_ates")} C / ${val("vital_nabiz")} /dk / ${val(
-            "vital_tansiyon"
-          )} mmHg`,
-        ],
-        ["Solunum Hizi", `${val("vital_solunum")} /dk`],
-        [
-          "Kilo / Boy / Bas Cevresi",
-          `${val("vital_kilo")} kg / ${val("vital_boy")} cm / ${val(
-            "vital_basCevresi"
-          )} cm`,
-        ],
-      ]);
-
-      let secIndex = 3;
-
-      // EĞER PEDİATRİ DOLDURULMUŞSA BAS:
       if (hasPed) {
-        drawSection(`${secIndex++}. GENEL PEDIATRI: BASVURU NEDENI`, [
-          ["Ana Sikayet", val("ped_sikayet")],
-          [
-            "Sure / Son Saglikli Zaman",
-            `${val("ped_sure")} / ${val("ped_sonSaglikliZaman")}`,
-          ],
-          ["Agri Skoru", val("ped_agriSkoru")],
-          [
-            "OLD CARTS (Baslangic/Sure)",
-            `${val("ped_onset")} / ${val("ped_duration")}`,
-          ],
-          [
-            "OLD CARTS (Yerlesim/Karakter)",
-            `${val("ped_location")} / ${val("ped_character")}`,
-          ],
-          ["OLD CARTS (Artiran/Azaltan)", val("ped_aggravating")],
-          [
-            "OLD CARTS (Iliskili/Siddet)",
-            `${val("ped_related")} / ${val("ped_severity")}`,
-          ],
+        addBlock("SIKAYET", [val("ped_sikayet")]);
+
+        addBlock("HIKAYE", [
+          val("ped_sure") ? `Sure: ${val("ped_sure")}` : null,
+          val("ped_sonSaglikliZaman")
+            ? `Son Saglikli Zaman: ${val("ped_sonSaglikliZaman")}`
+            : null,
+          val("ped_onset") ? `Baslangic: ${val("ped_onset")}` : null,
+          val("ped_location") ? `Yerlesim: ${val("ped_location")}` : null,
+          val("ped_duration") ? `Sure: ${val("ped_duration")}` : null,
+          val("ped_character") ? `Karakter: ${val("ped_character")}` : null,
+          val("ped_aggravating")
+            ? `Artiran/Azaltan: ${val("ped_aggravating")}`
+            : null,
+          val("ped_related")
+            ? `Iliskili Durumlar: ${val("ped_related")}`
+            : null,
+          val("ped_severity")
+            ? `Siddet: ${val("ped_severity")} (Agri: ${val("ped_agriSkoru")})`
+            : null,
         ]);
 
-        drawSection(`${secIndex++}. OZGECMIS (Prenatal, Natal, Postnatal)`, [
-          ["Gebelik (Gravida/Para)", val("ped_gravidaPara")],
-          [
-            "Anne / Baba Kan Grubu",
-            `${val("ped_anneKanGrubu")} / ${val("ped_babaKanGrubu")}`,
-          ],
-          ["Gebelik Hastaliklari/Ilaclar", val("ped_gebelikHastalik")],
-          [
-            "Dogum Sekli / Haftasi",
-            `${val("ped_dogumSekli")} / ${val("ped_gebelikHaftasi")}`,
-          ],
-          [
-            "Apgar / Resusitasyon",
-            `${val("ped_apgar")} / ${val("ped_resusitasyon")}`,
-          ],
-          ["Dogum Kilo, Boy, B.Cevresi", val("ped_dogumKiloBoy")],
-          [
-            "Mekonyum/Sarilik/Tarama",
-            `${val("ped_mekonyum")} / ${val("ped_sarilik")} / ${val(
-              "ped_topukKani"
-            )}`,
-          ],
+        addBlock("OZGECMIS", [
+          val("ped_gravidaPara")
+            ? `Gebelik (G/P): ${val("ped_gravidaPara")}`
+            : null,
+          val("ped_gebelikHastalik")
+            ? `Gebelik Hastalik/Ilac: ${val("ped_gebelikHastalik")}`
+            : null,
+          val("ped_dogumSekli")
+            ? `Dogum: ${val("ped_dogumSekli")}, ${val(
+                "ped_gebelikHaftasi"
+              )} hafta.`
+            : null,
+          val("ped_apgar")
+            ? `APGAR/Resusitasyon: ${val("ped_apgar")} / ${val(
+                "ped_resusitasyon"
+              )}`
+            : null,
+          val("ped_dogumKiloBoy")
+            ? `Olculer: ${val("ped_dogumKiloBoy")}`
+            : null,
+          val("ped_sarilik") ? `Sarilik/NICU: ${val("ped_sarilik")}` : null,
+          val("ped_gecirilmisHastalik")
+            ? `Gecirilmis Hastaliklar/Operasyon: ${val(
+                "ped_gecirilmisHastalik"
+              )}`
+            : null,
+          val("ped_alerji") ? `Alerjiler: ${val("ped_alerji")}` : null,
         ]);
 
-        drawSection(`${secIndex++}. BESLENME, BAGISIKLAMA VE ALERJI`, [
-          [
-            "Anne Sutu/Mama/Ek Gida",
-            `${val("ped_anneSutu")} / ${val("ped_formulMama")} / ${val(
-              "ped_ekGida"
-            )}`,
-          ],
-          [
-            "Ulusal / Ozel Asilar",
-            `${val("ped_asiUyum")} / ${val("ped_ozelAsi")}`,
-          ],
-          ["Gecirilmis Hastalik/Cerrahi", val("ped_gecirilmisHastalik")],
-          ["Alerjiler", val("ped_alerji")],
+        addBlock("BESLENME VE ASILAR", [
+          val("ped_anneSutu") ? `Anne Sutu: ${val("ped_anneSutu")}` : null,
+          val("ped_formulMama")
+            ? `Mama/Ek Gida: ${val("ped_formulMama")} / ${val("ped_ekGida")}`
+            : null,
+          val("ped_asiUyum") ? `Asilar: ${val("ped_asiUyum")}` : null,
         ]);
 
-        drawSection(`${secIndex++}. GELISIM, SOYGECMIS VE SOSYAL`, [
-          [
-            "Gelisim (Motor/Dil/Bilissel)",
-            `${val("ped_motor")} / ${val("ped_dil")} / ${val("ped_bilissel")}`,
-          ],
-          ["Akraba Evliligi", ynVal("ped_akraba", "ped_akraba_detay")],
-          ["Ebeveyn / Kardes Sagligi", val("ped_ebeveynSaglik")],
-          ["Ailede Kronik Hastaliklar", val("ped_aileKronik")],
-          ["Sosyal Cevre (IHELLP)", val("ped_sosyalDurum")],
+        addBlock("GELISIM VE SOYGECMIS", [
+          val("ped_motor")
+            ? `Gelisim (Motor/Dil): ${val("ped_motor")} / ${val("ped_dil")}`
+            : null,
+          f.ped_akraba === "Evet"
+            ? `Akraba Evliligi: Evet (${val("ped_akraba_detay")})`
+            : null,
+          val("ped_ebeveynSaglik")
+            ? `Ebeveyn Sagligi: ${val("ped_ebeveynSaglik")}`
+            : null,
+          val("ped_aileKronik")
+            ? `Ailede Kronik Hastalik: ${val("ped_aileKronik")}`
+            : null,
         ]);
 
-        drawSection(`${secIndex++}. SISTEMLERIN GOZDEN GECIRILMESI (ROS)`, [
-          ["Genel", ynVal("ped_rosGenel", "ped_rosGenel_detay")],
-          ["Deri", ynVal("ped_rosDeri", "ped_rosDeri_detay")],
-          ["Bas-Boyun (HEENT)", ynVal("ped_rosHEENT", "ped_rosHEENT_detay")],
-          ["Solunum", ynVal("ped_rosSolunum", "ped_rosSolunum_detay")],
-          ["Kardiyovaskuler", ynVal("ped_rosKVS", "ped_rosKVS_detay")],
-          ["Gastrointestinal", ynVal("ped_rosGI", "ped_rosGI_detay")],
-          ["Genitouriner", ynVal("ped_rosGU", "ped_rosGU_detay")],
-          [
-            "Kas-Iskelet / Norolojik",
-            ynVal("ped_rosNorolojik", "ped_rosNorolojik_detay"),
-          ],
+        addBlock("SISTEM SORGUSU", [
+          ynVal("ped_rosGenel", "ped_rosGenel_detay")
+            ? `Genel: ${ynVal("ped_rosGenel", "ped_rosGenel_detay")}`
+            : null,
+          ynVal("ped_rosSolunum", "ped_rosSolunum_detay")
+            ? `Solunum: ${ynVal("ped_rosSolunum", "ped_rosSolunum_detay")}`
+            : null,
+          ynVal("ped_rosGI", "ped_rosGI_detay")
+            ? `GI: ${ynVal("ped_rosGI", "ped_rosGI_detay")}`
+            : null,
+          ynVal("ped_rosNorolojik", "ped_rosNorolojik_detay")
+            ? `Noro: ${ynVal("ped_rosNorolojik", "ped_rosNorolojik_detay")}`
+            : null,
         ]);
 
-        drawSection(`${secIndex++}. SISTEMIK FIZIK MUAYENE`, [
-          ["Cilt, Sac, Tirnak", fmVal("ped_fmCilt", "ped_fmCilt_detay")],
-          ["Bas ve Boyun (HEENT)", fmVal("ped_fmHEENT", "ped_fmHEENT_detay")],
-          ["Solunum Sistemi", fmVal("ped_fmSolunum", "ped_fmSolunum_detay")],
-          ["Kardiyovaskuler", fmVal("ped_fmKVS", "ped_fmKVS_detay")],
-          ["Batin ve Genitalya", fmVal("ped_fmBatin", "ped_fmBatin_detay")],
-          [
-            "Endokrin (Tanner)",
-            fmVal("ped_fmEndokrin", "ped_fmEndokrin_detay"),
-          ],
-          [
-            "Kas-Iskelet Sistemi",
-            fmVal("ped_fmKasIskelet", "ped_fmKasIskelet_detay"),
-          ],
-          ["Norolojik Muayene", fmVal("ped_fmNoro", "ped_fmNoro_detay")],
+        addBlock("FIZIK MUAYENE", [
+          val("vital_ates")
+            ? `Vitals: Ates ${val("vital_ates")}C, Nabiz ${val(
+                "vital_nabiz"
+              )}, TA ${val("vital_tansiyon")}`
+            : null,
+          fmVal("ped_fmCilt", "ped_fmCilt_detay")
+            ? `Cilt: ${fmVal("ped_fmCilt", "ped_fmCilt_detay")}`
+            : null,
+          fmVal("ped_fmSolunum", "ped_fmSolunum_detay")
+            ? `Solunum: ${fmVal("ped_fmSolunum", "ped_fmSolunum_detay")}`
+            : null,
+          fmVal("ped_fmKVS", "ped_fmKVS_detay")
+            ? `KVS: ${fmVal("ped_fmKVS", "ped_fmKVS_detay")}`
+            : null,
+          fmVal("ped_fmBatin", "ped_fmBatin_detay")
+            ? `Batin: ${fmVal("ped_fmBatin", "ped_fmBatin_detay")}`
+            : null,
+          fmVal("ped_fmNoro", "ped_fmNoro_detay")
+            ? `Noro: ${fmVal("ped_fmNoro", "ped_fmNoro_detay")}`
+            : null,
         ]);
       }
 
-      // EĞER ROMATOLOJİ DOLDURULMUŞSA (VE YER KALDIYSA) BAS:
       if (hasRom) {
-        drawSection(`${secIndex++}. ROMATOLOJI: BASVURU NEDENI`, [
-          ["Ana Yakinma", val("rom_anaYakinma")],
-          [
-            "Sikayet Suresi / Tip",
-            `${val("rom_toplamSure")} (${val("rom_akutMuKornikMi")})`,
-          ],
-          ["Baslangic Sekli", val("rom_baslangic")],
-          ["Bel Agrisi (<5 Yas)", val("rom_belAgrisi")],
+        addBlock("ROMATOLOJI SIKAYET / HIKAYE", [
+          val("rom_anaYakinma")
+            ? `Ana Yakinma: ${val("rom_anaYakinma")}`
+            : null,
+          val("rom_toplamSure")
+            ? `Sure: ${val("rom_toplamSure")} (${val("rom_akutMuKornikMi")})`
+            : null,
+          val("rom_baslangic") ? `Baslangic: ${val("rom_baslangic")}` : null,
+          val("rom_inflamatuarMekanik")
+            ? `Karakteristik Tip: ${val("rom_inflamatuarMekanik")}`
+            : null,
+          val("rom_sabahTutuklugu") === "Evet"
+            ? `Sabah Tutuklugu: Evet (${val("rom_sabahTutukluguSuresi")} dk)`
+            : null,
+          val("rom_eklemSayisi")
+            ? `Eklem Tutulumu: ${val("rom_eklemSayisi")}, Simetrik: ${val(
+                "rom_simetrikMi"
+              )}`
+            : null,
+          val("rom_tetikleyiciEnfeksiyon")
+            ? `Tetikleyici Enfeksiyon: ${val("rom_tetikleyiciEnfeksiyon")}`
+            : null,
         ]);
 
-        drawSection(`${secIndex++}. AGRI KARAKTERI VE TUTULUM PATERNI`, [
-          ["Agri Tipi (Suphe)", val("rom_inflamatuarMekanik")],
-          [
-            "Sabah Tutuklugu",
-            `${val("rom_sabahTutuklugu")} (${val(
-              "rom_sabahTutukluguSuresi"
-            )} dk)`,
-          ],
-          [
-            "Eforla Hafifleme/Siddetlenme",
-            `${val("rom_agriHafifleme")} / ${val("rom_mekanikSiddetlenme")}`,
-          ],
-          ["Gece Masajla Hafifleme", val("rom_idiyopatikGece")],
-          ["Tutulan Eklem Sayisi", val("rom_eklemSayisi")],
-          [
-            "Simetrik / Gezici",
-            `${val("rom_simetrikMi")} / ${val("rom_migratuvarMi")}`,
-          ],
-          ["Gece Uyandiran Agri", val("rom_geceUykudanUyandiran")],
-          ["Tetikleyici Enfeksiyon Oykusu", val("rom_tetikleyiciEnfeksiyon")],
+        addBlock("SISTEMIK BULGULAR", [
+          val("rom_atesPaterni")
+            ? `Ates Paterni: ${val("rom_atesPaterni")}`
+            : null,
+          ynVal("rom_ciltSLE", "rom_ciltSLE_detay")
+            ? `SLE Dokuntusu: ${ynVal("rom_ciltSLE", "rom_ciltSLE_detay")}`
+            : null,
+          ynVal("rom_giSemptom", "rom_giSemptom_detay")
+            ? `GI Semptom: ${ynVal("rom_giSemptom", "rom_giSemptom_detay")}`
+            : null,
+          ynVal("rom_gozSemptom", "rom_gozSemptom_detay")
+            ? `Goz Semptomu: ${ynVal("rom_gozSemptom", "rom_gozSemptom_detay")}`
+            : null,
         ]);
 
-        drawSection(`${secIndex++}. SISTEMIK VE EKSTRA-ARTIKULER BULGULAR`, [
-          ["Ates Paterni", val("rom_atesPaterni")],
-          ["Kilo Kaybi", ynVal("rom_kiloKaybi", "rom_kiloKaybi_detay")],
-          [
-            "Cilt Bulgusu",
-            `SLE: ${ynVal("rom_ciltSLE", "rom_ciltSLE_detay")} | HSP: ${ynVal(
-              "rom_ciltHSP",
-              "rom_ciltHSP_detay"
-            )} | Psoriatik: ${ynVal(
-              "rom_ciltPsoriatik",
-              "rom_ciltPsoriatik_detay"
-            )}`,
-          ],
-          ["Gastrointestinal", ynVal("rom_giSemptom", "rom_giSemptom_detay")],
-          ["Goz (Uveit vb.)", ynVal("rom_gozSemptom", "rom_gozSemptom_detay")],
-          ["Genitouriner", ynVal("rom_guSemptom", "rom_guSemptom_detay")],
+        addBlock("OZEGECMIS / SOYGECMIS", [
+          val("rom_ilacKullanimi")
+            ? `Kullanilan Ilaclar: ${val("rom_ilacKullanimi")}`
+            : null,
+          ynVal("rom_aileRomatizma", "rom_aileRomatizma_detay")
+            ? `Ailede Romatizma: ${ynVal(
+                "rom_aileRomatizma",
+                "rom_aileRomatizma_detay"
+              )}`
+            : null,
+          ynVal("rom_aileFMF", "rom_aileFMF_detay")
+            ? `Ailede FMF: ${ynVal("rom_aileFMF", "rom_aileFMF_detay")}`
+            : null,
         ]);
 
-        drawSection(`${secIndex++}. OZGECMIS/SOYGECMIS (ROMATOLOJI)`, [
-          ["Kullanilan Ilaclar", val("rom_ilacKullanimi")],
-          [
-            "Kronik Enfeksiyon",
-            ynVal("rom_kronikEnfeksiyon", "rom_kronikEnfeksiyon_detay"),
-          ],
-          [
-            "Ailede Romatizma vb.",
-            ynVal("rom_aileRomatizma", "rom_aileRomatizma_detay"),
-          ],
-          [
-            "Ailede Erken Diyaliz",
-            ynVal("rom_aileDiyaliz", "rom_aileDiyaliz_detay"),
-          ],
-          [
-            "Ailede FMF/Periyodik Ates",
-            ynVal("rom_aileFMF", "rom_aileFMF_detay"),
-          ],
-        ]);
-
-        drawSection(`${secIndex++}. KAS-ISKELET VE FIZIK MUAYENE`, [
-          ["Inspeksiyon (Look)", fmVal("rom_fmLook", "rom_fmLook_detay")],
-          ["Palpasyon (Feel)", fmVal("rom_fmFeel", "rom_fmFeel_detay")],
-          ["Hareket (Move)", fmVal("rom_fmMove", "rom_fmMove_detay")],
-          ["Sistemik Muayene", fmVal("rom_fmSistemik", "rom_fmSistemik_detay")],
+        addBlock("KAS-ISKELET MUAYENESI", [
+          fmVal("rom_fmLook", "rom_fmLook_detay")
+            ? `Look (Inspeksiyon): ${fmVal("rom_fmLook", "rom_fmLook_detay")}`
+            : null,
+          fmVal("rom_fmFeel", "rom_fmFeel_detay")
+            ? `Feel (Palpasyon): ${fmVal("rom_fmFeel", "rom_fmFeel_detay")}`
+            : null,
+          fmVal("rom_fmMove", "rom_fmMove_detay")
+            ? `Move (Hareket): ${fmVal("rom_fmMove", "rom_fmMove_detay")}`
+            : null,
+          fmVal("rom_fmSistemik", "rom_fmSistemik_detay")
+            ? `Sistemik: ${fmVal("rom_fmSistemik", "rom_fmSistemik_detay")}`
+            : null,
         ]);
       }
+
+      // Render the Custom Plain-Text Table Structure
+      doc.autoTable({
+        startY: 32, // Başlığın altından başla
+        body: rows,
+        theme: "plain", // Çizgisiz tablo
+        styles: {
+          cellPadding: { top: 2, bottom: 2, left: 1, right: 1 },
+          fontSize: 9,
+          textColor: [0, 0, 0], // Siyah metin
+          font: "helvetica",
+        },
+        columnStyles: {
+          0: { cellWidth: 35 }, // Sol kolon (saat vb için ayrılan dar alan)
+          1: { cellWidth: "auto" }, // Sağ kolon (Geniş alan)
+        },
+        didDrawPage: headerAndFooter, // Sayfa numaraları, tarih, logo
+        margin: { top: 32, bottom: 25, left: 14, right: 14 },
+      });
     });
 
     doc.save(
-      `Anamnez_Raporu_${normalizeText(
-        formData.kimlik_adSoyad || "Bilinmeyen"
-      )}.pdf`
+      `Dosya_${normalizeText(formData.kimlik_adSoyad || "Bilinmeyen")}.pdf`
     );
     setShowExportModal(false);
   };
