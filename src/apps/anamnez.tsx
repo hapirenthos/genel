@@ -612,7 +612,7 @@ export default function HastaAnamnezMiniApp() {
     const doc = new jsPDF() as jsPDFWithAutoTable;
 
     const logo = new Image();
-    logo.src = "/hacettepe-logo.jpeg";
+    logo.src = "/hacettepe-logo.png";
 
     await new Promise<void>((resolve, reject) => {
       logo.onload = () => resolve();
@@ -671,7 +671,7 @@ export default function HastaAnamnezMiniApp() {
         // Logo (Kırmızı kutu içi beyaz 'h' harfi tasarımı)
         doc.addImage(
           logo,
-          "JPEG",
+          "PNG",
           14, // x
           9, // y
           12, // width
