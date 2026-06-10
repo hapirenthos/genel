@@ -60,7 +60,7 @@ const calculateAge = (dob: string, targetDate: string) => {
   return `${days} gün`;
 };
 
-// PDF için Türkçe karakter düzeltici (Çıktıda  çıkmasını engeller)
+// PDF için Türkçe karakter düzeltici
 const normalizeText = (text: string | null | undefined) => {
   if (!text) return "";
   return String(text)
@@ -233,6 +233,33 @@ const initialFormData: FormData = {
   rom_fmMove_detay: "",
   rom_fmSistemik: "",
   rom_fmSistemik_detay: "",
+};
+
+// Formda hangi kısımların doldurulduğunu kontrol eden akıllı fonksiyonlar
+const checkHasPed = (f: any) =>
+  Object.keys(initialFormData).some(
+    (k) =>
+      k.startsWith("ped_") &&
+      f[k] !== undefined &&
+      f[k] !== initialFormData[k] &&
+      f[k] !== ""
+  );
+const checkHasRom = (f: any) =>
+  Object.keys(initialFormData).some(
+    (k) =>
+      k.startsWith("rom_") &&
+      f[k] !== undefined &&
+      f[k] !== initialFormData[k] &&
+      f[k] !== ""
+  );
+
+const getFormTypeLabel = (f: FormData) => {
+  const hasPed = checkHasPed(f);
+  const hasRom = checkHasRom(f);
+  if (hasPed && hasRom) return "Genel + Romatoloji";
+  if (hasRom) return "Çocuk Romatoloji";
+  if (hasPed) return "Genel Pediatri";
+  return f.formType === "romatoloji" ? "Çocuk Romatoloji" : "Genel Pediatri";
 };
 
 // --- PURE UI COMPONENTS ---
@@ -464,7 +491,6 @@ export default function HastaAnamnezMiniApp() {
   >({});
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // PDF Modali için state'ler
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportRange, setExportRange] = useState({
     start: "",
@@ -489,10 +515,7 @@ export default function HastaAnamnezMiniApp() {
     const { name, value } = e.target;
     setFormData((prev) => {
       const newData = { ...prev, [name]: value };
-
-      if (name === "kimlik_yas") {
-        newData.kimlik_yas_manuel = true;
-      }
+      if (name === "kimlik_yas") newData.kimlik_yas_manuel = true;
       if (name === "kimlik_dogumTarihi" || name === "kimlik_gorusmeTarihi") {
         newData.kimlik_yas_manuel = false;
         newData.kimlik_yas = calculateAge(
@@ -500,7 +523,6 @@ export default function HastaAnamnezMiniApp() {
           newData.kimlik_gorusmeTarihi
         );
       }
-
       return newData;
     });
   };
@@ -515,11 +537,7 @@ export default function HastaAnamnezMiniApp() {
         "Kaydedilmemiş verileriniz silinecektir. Yeni dosya açmak istiyor musunuz?"
       )
     ) {
-      setFormData({
-        ...initialFormData,
-        formType: activeTab,
-        kimlik_gorusmeTarihi: getTodayDate(),
-      });
+      setFormData({ ...initialFormData, kimlik_gorusmeTarihi: getTodayDate() });
     }
   };
 
@@ -542,7 +560,7 @@ export default function HastaAnamnezMiniApp() {
       id: formData.id || Date.now().toString(),
       patientId: pId,
       lastModified: now,
-      formType: activeTab,
+      formType: activeTab, // Sadece son aktif kalınan tab olarak tutuyoruz, asıl form tipi dinamik hesaplanıyor
     };
 
     if (formData.id) {
@@ -568,7 +586,10 @@ export default function HastaAnamnezMiniApp() {
     )
       return;
     setFormData(file);
-    setActiveTab(file.formType || "pediatri");
+    // Yüklenen dosyada hangi sekme daha doluysa onu aktif et
+    if (checkHasRom(file) && !checkHasPed(file)) setActiveTab("romatoloji");
+    else setActiveTab("pediatri");
+
     if (window.innerWidth < 1024) setSidebarOpen(false);
   };
 
@@ -578,18 +599,25 @@ export default function HastaAnamnezMiniApp() {
       const updated = savedFiles.filter((f) => f.id !== id);
       setSavedFiles(updated);
       localStorage.setItem("klinikApp_files", JSON.stringify(updated));
-      if (formData.id === id) {
-        setFormData({ ...initialFormData });
-      }
+      if (formData.id === id) setFormData({ ...initialFormData });
     }
   };
 
-  // --- GELİŞMİŞ VE PROFESYONEL PDF DIŞA AKTARMA FONKSİYONU ---
+  // --- GELİŞMİŞ VE PROFESYONEL PDF DIŞA AKTARMA (Sadece İlgili Hastanın Seçili Tarihleri) ---
   const exportPDF = () => {
+    if (!formData.patientId) {
+      alert(
+        "Öncelikle dışa aktarmak istediğiniz hastayı sol menüden seçin veya kaydedin."
+      );
+      return;
+    }
+
     const doc = new jsPDF() as jsPDFWithAutoTable;
 
+    // Hastanın sadece kendi dosyalarını ve (varsa) tarih aralığını filtrele
     let filesToExport = exportRange.includeAll
       ? savedFiles.filter((f) => {
+          if (f.patientId !== formData.patientId) return false; // SADECE BU HASTA
           if (!exportRange.start || !exportRange.end) return true;
           const date = new Date(f.kimlik_gorusmeTarihi);
           return (
@@ -599,18 +627,31 @@ export default function HastaAnamnezMiniApp() {
         })
       : [formData];
 
-    if (filesToExport.length === 0 || !filesToExport[0].kimlik_adSoyad) {
-      alert("Dışa aktarılacak geçerli/kaydedilmiş bir dosya bulunamadı.");
+    if (filesToExport.length === 0) {
+      alert("Seçilen aralıkta bu hastaya ait kaydedilmiş dosya bulunamadı.");
       return;
     }
+
+    // Tarihe göre eskiden yeniye sırala
+    filesToExport.sort(
+      (a, b) =>
+        new Date(a.kimlik_gorusmeTarihi).getTime() -
+        new Date(b.kimlik_gorusmeTarihi).getTime()
+    );
 
     filesToExport.forEach((f, index) => {
       if (index > 0) doc.addPage();
       let currentY = 20;
 
-      // Ana Başlık
+      const hasPed =
+        checkHasPed(f) ||
+        (!checkHasPed(f) && !checkHasRom(f) && f.formType === "pediatri");
+      const hasRom =
+        checkHasRom(f) ||
+        (!checkHasPed(f) && !checkHasRom(f) && f.formType === "romatoloji");
+
       doc.setFontSize(16);
-      doc.setTextColor(30, 58, 138); // Koyu Mavi
+      doc.setTextColor(30, 58, 138);
       doc.text(
         normalizeText("KLINIK ANAMNEZ VE MUAYENE RAPORU"),
         105,
@@ -619,14 +660,13 @@ export default function HastaAnamnezMiniApp() {
       );
       currentY += 8;
 
-      // Alt Başlık
       doc.setFontSize(10);
       doc.setTextColor(100, 100, 100);
       doc.text(
         normalizeText(
-          `Form Tipi: ${
-            f.formType === "pediatri" ? "Genel Pediatri" : "Cocuk Romatoloji"
-          }  |  Cikti Tarihi: ${new Date().toLocaleString("tr-TR")}`
+          `Dosya Icerigi: ${getFormTypeLabel(f)}  |  Gorusme: ${
+            f.kimlik_gorusmeTarihi
+          }`
         ),
         105,
         currentY,
@@ -634,7 +674,7 @@ export default function HastaAnamnezMiniApp() {
       );
       currentY += 12;
 
-      // PDF İÇİN YARDIMCI FONKSİYONLAR
+      // PDF Değer Çekici Fonksiyonlar
       const val = (k: string) => normalizeText(f[k] ? String(f[k]) : "-");
       const ynVal = (r: string, d: string) => {
         if (!f[r]) return "-";
@@ -647,7 +687,6 @@ export default function HastaAnamnezMiniApp() {
         return normalizeText(f[d] ? String(f[d]) : "Detay belirtilmemis");
       };
 
-      // Tablo Çizici Fonksiyon
       const drawSection = (title: string, data: string[][]) => {
         doc.autoTable({
           startY: currentY,
@@ -676,7 +715,7 @@ export default function HastaAnamnezMiniApp() {
         currentY = doc.lastAutoTable.finalY + 6;
       };
 
-      // 1. KİMLİK BİLGİLERİ (ORTAK)
+      // 1. KİMLİK & 2. VİTAL (HER ZAMAN)
       drawSection("1. KIMLIK BILGILERI VE DEMOGRAFI", [
         [
           "Dosya No / TC Kimlik No",
@@ -688,7 +727,6 @@ export default function HastaAnamnezMiniApp() {
           `${val("kimlik_dogumTarihi")} / ${val("kimlik_yas")}`,
         ],
         ["Cinsiyeti", val("kimlik_cinsiyet")],
-        ["Gorusme Tarihi", val("kimlik_gorusmeTarihi")],
         [
           "Informant / Guvenilirlik",
           `${val("kimlik_informant")} / ${val("kimlik_guvenilirlik")}`,
@@ -696,7 +734,6 @@ export default function HastaAnamnezMiniApp() {
         ["Guncel Adres", val("kimlik_adres")],
       ]);
 
-      // 2. VİTAL BULGULAR (ORTAK)
       drawSection("2. VITAL BULGULAR VE ANTROPOMETRI", [
         ["Genel Durum", val("vital_genelDurum")],
         [
@@ -714,9 +751,11 @@ export default function HastaAnamnezMiniApp() {
         ],
       ]);
 
-      // FORMA GÖRE DEĞİŞEN ALANLAR
-      if (f.formType === "pediatri") {
-        drawSection("3. BASVURU NEDENI & HASTALIK OYKUSU", [
+      let secIndex = 3;
+
+      // EĞER PEDİATRİ DOLDURULMUŞSA BAS:
+      if (hasPed) {
+        drawSection(`${secIndex++}. GENEL PEDIATRI: BASVURU NEDENI`, [
           ["Ana Sikayet", val("ped_sikayet")],
           [
             "Sure / Son Saglikli Zaman",
@@ -738,7 +777,7 @@ export default function HastaAnamnezMiniApp() {
           ],
         ]);
 
-        drawSection("4. OZGECMIS (Prenatal, Natal, Postnatal)", [
+        drawSection(`${secIndex++}. OZGECMIS (Prenatal, Natal, Postnatal)`, [
           ["Gebelik (Gravida/Para)", val("ped_gravidaPara")],
           [
             "Anne / Baba Kan Grubu",
@@ -762,7 +801,7 @@ export default function HastaAnamnezMiniApp() {
           ],
         ]);
 
-        drawSection("5. BESLENME, BAGISIKLAMA VE ALERJI", [
+        drawSection(`${secIndex++}. BESLENME, BAGISIKLAMA VE ALERJI`, [
           [
             "Anne Sutu/Mama/Ek Gida",
             `${val("ped_anneSutu")} / ${val("ped_formulMama")} / ${val(
@@ -777,7 +816,7 @@ export default function HastaAnamnezMiniApp() {
           ["Alerjiler", val("ped_alerji")],
         ]);
 
-        drawSection("6. GELISIM, SOYGECMIS VE SOSYAL", [
+        drawSection(`${secIndex++}. GELISIM, SOYGECMIS VE SOSYAL`, [
           [
             "Gelisim (Motor/Dil/Bilissel)",
             `${val("ped_motor")} / ${val("ped_dil")} / ${val("ped_bilissel")}`,
@@ -788,7 +827,7 @@ export default function HastaAnamnezMiniApp() {
           ["Sosyal Cevre (IHELLP)", val("ped_sosyalDurum")],
         ]);
 
-        drawSection("7. SISTEMLERIN GOZDEN GECIRILMESI (ROS)", [
+        drawSection(`${secIndex++}. SISTEMLERIN GOZDEN GECIRILMESI (ROS)`, [
           ["Genel", ynVal("ped_rosGenel", "ped_rosGenel_detay")],
           ["Deri", ynVal("ped_rosDeri", "ped_rosDeri_detay")],
           ["Bas-Boyun (HEENT)", ynVal("ped_rosHEENT", "ped_rosHEENT_detay")],
@@ -802,7 +841,7 @@ export default function HastaAnamnezMiniApp() {
           ],
         ]);
 
-        drawSection("8. SISTEMIK FIZIK MUAYENE", [
+        drawSection(`${secIndex++}. SISTEMIK FIZIK MUAYENE`, [
           ["Cilt, Sac, Tirnak", fmVal("ped_fmCilt", "ped_fmCilt_detay")],
           ["Bas ve Boyun (HEENT)", fmVal("ped_fmHEENT", "ped_fmHEENT_detay")],
           ["Solunum Sistemi", fmVal("ped_fmSolunum", "ped_fmSolunum_detay")],
@@ -818,9 +857,11 @@ export default function HastaAnamnezMiniApp() {
           ],
           ["Norolojik Muayene", fmVal("ped_fmNoro", "ped_fmNoro_detay")],
         ]);
-      } else {
-        // ROMATOLOJİ FORMU ÇIKTISI
-        drawSection("3. ROMATOLOJIK BASVURU NEDENI", [
+      }
+
+      // EĞER ROMATOLOJİ DOLDURULMUŞSA (VE YER KALDIYSA) BAS:
+      if (hasRom) {
+        drawSection(`${secIndex++}. ROMATOLOJI: BASVURU NEDENI`, [
           ["Ana Yakinma", val("rom_anaYakinma")],
           [
             "Sikayet Suresi / Tip",
@@ -830,7 +871,7 @@ export default function HastaAnamnezMiniApp() {
           ["Bel Agrisi (<5 Yas)", val("rom_belAgrisi")],
         ]);
 
-        drawSection("4. AGRI KARAKTERI VE TUTULUM PATERNI", [
+        drawSection(`${secIndex++}. AGRI KARAKTERI VE TUTULUM PATERNI`, [
           ["Agri Tipi (Suphe)", val("rom_inflamatuarMekanik")],
           [
             "Sabah Tutuklugu",
@@ -852,11 +893,11 @@ export default function HastaAnamnezMiniApp() {
           ["Tetikleyici Enfeksiyon Oykusu", val("rom_tetikleyiciEnfeksiyon")],
         ]);
 
-        drawSection("5. SISTEMIK VE EKSTRA-ARTIKULER BULGULAR", [
+        drawSection(`${secIndex++}. SISTEMIK VE EKSTRA-ARTIKULER BULGULAR`, [
           ["Ates Paterni", val("rom_atesPaterni")],
           ["Kilo Kaybi", ynVal("rom_kiloKaybi", "rom_kiloKaybi_detay")],
           [
-            "Cilt Bulgusu (SLE/HSP/Psor.)",
+            "Cilt Bulgusu",
             `SLE: ${ynVal("rom_ciltSLE", "rom_ciltSLE_detay")} | HSP: ${ynVal(
               "rom_ciltHSP",
               "rom_ciltHSP_detay"
@@ -870,7 +911,7 @@ export default function HastaAnamnezMiniApp() {
           ["Genitouriner", ynVal("rom_guSemptom", "rom_guSemptom_detay")],
         ]);
 
-        drawSection("6. ROMATOLOJI ODAKLI OZGECMIS/SOYGECMIS", [
+        drawSection(`${secIndex++}. OZGECMIS/SOYGECMIS (ROMATOLOJI)`, [
           ["Kullanilan Ilaclar", val("rom_ilacKullanimi")],
           [
             "Kronik Enfeksiyon",
@@ -890,7 +931,7 @@ export default function HastaAnamnezMiniApp() {
           ],
         ]);
 
-        drawSection("7. KAS-ISKELET VE SISTEMIK FIZIK MUAYENE", [
+        drawSection(`${secIndex++}. KAS-ISKELET VE FIZIK MUAYENE`, [
           ["Inspeksiyon (Look)", fmVal("rom_fmLook", "rom_fmLook_detay")],
           ["Palpasyon (Feel)", fmVal("rom_fmFeel", "rom_fmFeel_detay")],
           ["Hareket (Move)", fmVal("rom_fmMove", "rom_fmMove_detay")],
@@ -899,7 +940,11 @@ export default function HastaAnamnezMiniApp() {
       }
     });
 
-    doc.save(`Anamnez_Raporu_${getTodayDate()}.pdf`);
+    doc.save(
+      `Anamnez_Raporu_${normalizeText(
+        formData.kimlik_adSoyad || "Bilinmeyen"
+      )}.pdf`
+    );
     setShowExportModal(false);
   };
 
@@ -1013,10 +1058,9 @@ export default function HastaAnamnezMiniApp() {
                                 <History className="w-3 h-3" />{" "}
                                 {record.kimlik_gorusmeTarihi}
                               </span>
+                              {/* FORMUN DİNAMİK İÇERİĞİ BURADA YAZAR */}
                               <span className="text-[10px] opacity-80">
-                                {record.formType === "pediatri"
-                                  ? "Genel Pediatri"
-                                  : "Çocuk Romatoloji"}
+                                {getFormTypeLabel(record)}
                               </span>
                             </div>
                             <button
@@ -1040,7 +1084,7 @@ export default function HastaAnamnezMiniApp() {
 
       {/* MAIN CONTENT WRAPPER */}
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden relative">
-        {/* TOP ACTION BAR - ESNEK/RESPONSIVE */}
+        {/* TOP ACTION BAR */}
         <div className="bg-white shadow-sm border-b border-slate-200 p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0 z-10">
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             {!sidebarOpen && (
@@ -1053,10 +1097,7 @@ export default function HastaAnamnezMiniApp() {
             )}
             <div className="flex flex-wrap sm:flex-nowrap bg-slate-100 p-1 rounded-lg flex-1 sm:flex-none w-full sm:w-auto">
               <button
-                onClick={() => {
-                  setActiveTab("pediatri");
-                  setFormData((p) => ({ ...p, formType: "pediatri" }));
-                }}
+                onClick={() => setActiveTab("pediatri")}
                 className={`flex-1 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-all ${
                   activeTab === "pediatri"
                     ? "bg-white shadow-sm text-blue-700"
@@ -1066,10 +1107,7 @@ export default function HastaAnamnezMiniApp() {
                 Genel Pediatri
               </button>
               <button
-                onClick={() => {
-                  setActiveTab("romatoloji");
-                  setFormData((p) => ({ ...p, formType: "romatoloji" }));
-                }}
+                onClick={() => setActiveTab("romatoloji")}
                 className={`flex-1 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-all ${
                   activeTab === "romatoloji"
                     ? "bg-white shadow-sm text-blue-700"
